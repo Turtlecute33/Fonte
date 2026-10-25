@@ -115,6 +115,13 @@ class Library(private val store: Store, private val packages: Packages, private 
 
     fun export(): String = Transfer.export(store.apps)
 
+    /** Fonte is always in its own list, so that it updates itself like the other apps. Adds it when it is not there. */
+    fun addSelf() {
+        if (store.apps.any { it.id == SELF.id || it.packageName == SELF_PACKAGE }) return
+        val app = newApp(SELF, SELF_PACKAGE, null, false, "", true, null)
+        store.update { d -> if (d.apps.any { it.id == app.id }) d else d.copy(apps = d.apps + app) }
+    }
+
     /**
      * A new entry. An installed package is adopted: its label, and its signing certificate as the pin. The installed
      * certificate wins over a pin from an import file.
@@ -160,6 +167,12 @@ class Library(private val store: Store, private val packages: Packages, private 
         private const val TAG = "FonteLibrary"
         private const val PARALLEL = 8
         const val NO_APK = "No APK for this device in the recent releases"
+
+        /** Where Fonte publishes its releases, and the package of the release build. */
+        val SELF = Source(SourceKind.GitHub, "github.com", "Turtlecute33/Fonte")
+        const val SELF_PACKAGE = "app.fonte"
+
+        fun isSelf(app: TrackedApp) = app.id == SELF.id
 
         /** Repository name, or for F-Droid packages the last part of the package name ("org.schabi.newpipe" → "Newpipe"). */
         fun defaultName(source: Source): String =

@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.fonte.Library
 import app.fonte.Row
 import app.fonte.app
 import app.fonte.install.Installer
@@ -153,7 +154,8 @@ fun DetailScreen(id: String, nav: Navigator) {
             item { SectionTitle("Security") }
             item { Security(row, onReset = { resettingPin = true }) }
 
-            item {
+            // Fonte's own entry stays: it is how Fonte updates itself.
+            if (!Library.isSelf(t)) item {
                 Row(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalArrangement = Arrangement.Center) {
                     TextButton(onClick = { removing = true }) {
                         Text("Remove from Fonte", color = MaterialTheme.colorScheme.error)

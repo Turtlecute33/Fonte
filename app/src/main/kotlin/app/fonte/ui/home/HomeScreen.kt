@@ -58,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fonte.FonteApp
+import app.fonte.Library
 import app.fonte.Row
 import app.fonte.app
 import app.fonte.ui.AppIcon
@@ -107,6 +109,8 @@ fun HomeScreen(nav: Navigator) {
     }
     LaunchedEffect(Unit) { app.installer.messages.collect { snackbar.showSnackbar(it) } }
 
+    /** Apps that the user added: Fonte's own entry does not count. */
+    fun added() = app.store.apps.count { !Library.isSelf(it) }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     fun askNotifications() {
         if (app.store.settings.background &&
@@ -117,16 +121,18 @@ fun HomeScreen(nav: Navigator) {
     }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
-            val first = app.store.apps.isEmpty()
+            val first = added() == 0
             val text = importFile(context, uri, app)
             snackbar.showSnackbar(text)
-            if (first && app.store.apps.isNotEmpty()) askNotifications()
+            if (first && added() > 0) askNotifications()
         }
     }
 
     val updates = rows.filter { it.update }
     val installed = rows.filter { !it.update && it.installed != null }
     val missing = rows.filter { it.installed == null }
+    // Only Fonte itself, with nothing to do: the start screen shows, with its import button.
+    val empty = rows.all { Library.isSelf(it.app) && !it.update && it.task == null }
     val list = rememberLazyListState()
     val atTop by remember { derivedStateOf { list.firstVisibleItemIndex == 0 } }
     val bar = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -141,7 +147,7 @@ fun HomeScreen(nav: Navigator) {
                     Text(
                         when {
                             checking -> "Checking…"
-                            rows.isEmpty() -> "No apps"
+                            empty -> "No apps"
                             updates.isNotEmpty() -> if (updates.size == 1) "1 update" else "${updates.size} updates"
                             installed.isNotEmpty() -> "Up to date"
                             else -> if (rows.size == 1) "1 app" else "${rows.size} apps"
@@ -155,7 +161,7 @@ fun HomeScreen(nav: Navigator) {
             )
         },
         floatingActionButton = {
-            if (rows.isNotEmpty()) {
+            if (!empty) {
                 ExtendedFloatingActionButton(
                     onClick = { adding = true },
                     expanded = atTop,
@@ -175,10 +181,18 @@ fun HomeScreen(nav: Navigator) {
                 PullToRefreshDefaults.LoadingIndicator(state = refresh, isRefreshing = checking, modifier = Modifier.align(Alignment.TopCenter))
             },
         ) {
-            if (rows.isEmpty()) {
+            if (empty) {
                 Empty(onAdd = { adding = true }, onImport = { importer.launch(IMPORT_TYPES) })
             } else {
                 LazyColumn(state = list, contentPadding = PaddingValues(bottom = 104.dp), modifier = Modifier.fillMaxSize()) {
+                    // The list keeps its first visible item in view when items go in above it. At the top, stay at
+                    // the top: the installed state arrives after the first layout, and an update moves its app up.
+                    // This block runs again when the items change, before the list measures them.
+                    Snapshot.withoutReadObservation {
+                        if (list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset == 0 && !list.isScrollInProgress) {
+                            list.requestScrollToItem(0)
+                        }
+                    }
                     if (!canInstall) item(key = "permission") { InstallPermission(context) }
                     section("Updates", updates, nav) {
                         if (updates.any { it.task == null }) {
@@ -203,7 +217,7 @@ fun HomeScreen(nav: Navigator) {
                 adding = false
                 addLink = ""
                 scope.launch {
-                    if (app.store.apps.size == 1) askNotifications()
+                    if (added() == 1) askNotifications()
                     if (added.packageName?.let(app.packages::info) == null) {
                         val r = snackbar.showSnackbar("Added ${added.name}", actionLabel = "Install", withDismissAction = true, duration = SnackbarDuration.Long)
                         if (r == SnackbarResult.ActionPerformed) app.installer.start(added.id)

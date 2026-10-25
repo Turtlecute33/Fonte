@@ -78,6 +78,7 @@ class FonteApp : Application() {
 
         scope.launch(Dispatchers.IO) {
             store.load()
+            library.addSelf()
             packages.refresh(trackedPackages())
             _ready.value = true
             notifier.setUp()
@@ -140,7 +141,7 @@ class FonteApp : Application() {
                 val info = app.packageName?.let(packages::info) ?: return@filter false
                 Versions.hasUpdate(app, info.versionCode, info.versionName)
             }
-        }
+        }.sortedBy { it.packageName == packageName } // Last: the install of Fonte itself ends this process.
         val left = updates.filter { app ->
             !(settings.autoInstall && app.autoUpdate && installer.install(app.id, background = true))
         }

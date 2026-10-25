@@ -38,6 +38,7 @@ run on GrapheneOS with "Restrict dynamic code loading" (memory and storage) on.
   notification.
 - **Fast checks**: HTTP/3 and HTTP/2, all apps at the same time, and a source with no change
   answers with an empty "not modified" reply.
+- **Updates itself**: Fonte is always in its own list and updates like the other apps.
 - **Share to add**: share a repository link from your browser to Fonte.
 - **Import and export**: the Obtainium export (any version), and Fonte's own list with the pinned
   certificates.
@@ -61,7 +62,8 @@ And also:
   Fonte installed.
 - **HTTPS only**, also after redirects. Only system CAs: a CA that you or an admin add is not
   trusted.
-- **The GitHub token** is optional; private repositories need one. It is encrypted with an Android
+- **The GitHub token** is optional; private repositories need one. Fonte shows the steps to make a
+  fine-grained token with read-only access and nothing more. It is encrypted with an Android
   Keystore key (StrongBox when available) and sent only to api.github.com. A redirect to another
   host drops it.
 - **Release notes are plain text**. Fonte shows no HTML, and opens only https web pages.
@@ -70,8 +72,9 @@ And also:
 ## Privacy
 
 - No analytics, no crash reporting, no Google Play Services, no third-party SDKs, no account.
-- Fonte connects only to the sources in your list. When you add a link to an unknown host, Fonte
-  asks that host if it runs GitLab, Forgejo or Gitea. An import contacts no host.
+- Fonte connects only to the sources in your list, and its own GitHub repository is always in
+  it. When you add a link to an unknown host, Fonte asks that host if it runs GitLab, Forgejo or
+  Gitea. An import contacts no host.
 - No cookies, no HTTP cache, and a User-Agent with no device data.
 - The clipboard is read only when you tap Paste.
 - No backups: the app list and settings stay out of cloud backup and device transfer.

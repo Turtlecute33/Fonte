@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -153,6 +154,8 @@ class Installer(
         // the user anyway: their prompt goes out as a notification at once.
         val own = context.packageName
         val waits = background && installed != null && (installed.installer == own || installed.updateOwner == own)
+        // Installing Fonte itself ends this process: the other downloads and installs go first.
+        if (pkg == own) _tasks.first { t -> t.none { (id, task) -> id != appId && task !is Task.Waiting } }
         // Before the commit: its result may arrive at once and clear the task.
         _tasks.update { it + (appId to if (waits) Task.Waiting else Task.Installing) }
         val sessionId = commit(file, archive, release.tag, appId, newPin, background, waits)
