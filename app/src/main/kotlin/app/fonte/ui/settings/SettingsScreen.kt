@@ -45,6 +45,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 @Composable
 fun SettingsScreen(nav: Navigator) {
@@ -63,7 +64,9 @@ fun SettingsScreen(nav: Navigator) {
         if (uri != null) scope.launch {
             val text = try {
                 withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(app.library.export().toByteArray()) }
+                    // A provider can return no stream; that is a failure, not an empty success.
+                    val out = context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("Cannot open the file")
+                    out.use { it.write(app.library.export().toByteArray()) }
                 }
                 "Exported ${app.store.apps.size} apps"
             } catch (e: Exception) {

@@ -29,7 +29,7 @@ class Token(dir: File, private val vault: Vault) {
                 } catch (_: FileNotFoundException) {
                     null
                 } catch (e: Exception) {
-                    Log.w(TAG, "Token unreadable", e)
+                    Log.w(TAG, "Token unreadable: ${e.javaClass.simpleName}")
                     null
                 }
                 read = true

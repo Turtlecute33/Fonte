@@ -113,7 +113,7 @@ class Installer(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Install of $appId failed", e)
+            Log.w(TAG, "Install failed: ${e.javaClass.simpleName}")
             val text = e.message ?: "Install failed"
             store.updateApp(appId) { it.copy(error = text) }
             if (!background) messages.tryEmit("${store.app(appId)?.name ?: "App"}: $text")

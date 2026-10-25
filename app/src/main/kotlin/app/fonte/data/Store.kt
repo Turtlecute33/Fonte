@@ -80,7 +80,7 @@ class Store(dir: File, private val scope: CoroutineScope) {
             file.finishWrite(out)
         } catch (e: Exception) {
             file.failWrite(out)
-            Log.w(TAG, "apps.json write failed", e)
+            Log.w(TAG, "apps.json write failed: ${e.javaClass.simpleName}")
         }
     }
 
