@@ -115,7 +115,10 @@ class Library(private val store: Store, private val packages: Packages, private 
 
     fun export(): String = Transfer.export(store.apps)
 
-    /** A new entry. An installed package is adopted: its label, and its signing certificate as the pin. */
+    /**
+     * A new entry. An installed package is adopted: its label, and its signing certificate as the pin. The installed
+     * certificate wins over a pin from an import file.
+     */
     private fun newApp(
         source: Source,
         pkg: String?,
@@ -135,7 +138,7 @@ class Library(private val store: Store, private val packages: Packages, private 
             prerelease = prerelease,
             apkFilter = filter.trim(),
             autoUpdate = autoUpdate,
-            cert = cert ?: installed?.cert,
+            cert = installed?.cert ?: cert,
             addedAt = System.currentTimeMillis(),
         )
     }

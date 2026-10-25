@@ -29,8 +29,8 @@ run on GrapheneOS with "Restrict dynamic code loading" (memory and storage) on.
 
 ## Features
 
-- **Sources**: GitHub, GitLab (also self-hosted), Codeberg, Forgejo and Gitea, F-Droid and
-  IzzyOnDroid.
+- **Sources**: GitHub (also private repositories, with a token), GitLab (also self-hosted),
+  Codeberg, Forgejo and Gitea, F-Droid and IzzyOnDroid.
 - **The right APK**: the build for your processor, an optional name filter (regex), and
   pre-releases if you want them.
 - **Background updates**: a check every 3, 6, 12 or 24 hours. Apps that Fonte installed update
@@ -51,7 +51,9 @@ Before Fonte installs an APK, the APK must:
 - be a valid, signed APK with native code (if any) for this device;
 - keep the package name that the app had before;
 - be signed with the pinned certificate. Fonte pins the certificate at the first install, or when
-  it adopts an app that is installed already. A key rotation (APK signature scheme v3) is followed.
+  it adopts an app that is installed already. A key rotation (APK signature scheme v3) is followed;
+- at the first install from F-Droid or IzzyOnDroid, be in the repo's signed index. Fonte checks the
+  index with the repo key that the F-Droid client also uses.
 
 And also:
 
@@ -59,9 +61,10 @@ And also:
   Fonte installed.
 - **HTTPS only**, also after redirects. Only system CAs: a CA that you or an admin add is not
   trusted.
-- **The GitHub token** is optional. It is encrypted with an Android Keystore key (StrongBox when
-  available) and sent only to api.github.com. A redirect to another host drops it.
-- **Release notes are plain text**. Fonte shows no HTML.
+- **The GitHub token** is optional; private repositories need one. It is encrypted with an Android
+  Keystore key (StrongBox when available) and sent only to api.github.com. A redirect to another
+  host drops it.
+- **Release notes are plain text**. Fonte shows no HTML, and opens only https web pages.
 - **Memory tagging** (MTE) in sync mode on phones that have it, such as Pixel 8 and later.
 
 ## Privacy

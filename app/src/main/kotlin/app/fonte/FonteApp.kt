@@ -69,7 +69,7 @@ class FonteApp : Application() {
         // Built on first use, off the main thread: the engine loads the platform's network stack.
         val http = lazy { Http(this) }
         val ctx = Ctx(http, token::get, Build.SUPPORTED_ABIS.toList())
-        installer = Installer(this, http, store, packages, notifier, scope)
+        installer = Installer(this, http, token::get, store, packages, notifier, scope)
         library = Library(store, packages, ctx)
         rows = combine(store.state, packages.installed, installer.tasks) { data, installed, tasks ->
             data.apps.map { Row(it, it.packageName?.let(installed::get), tasks[it.id]) }

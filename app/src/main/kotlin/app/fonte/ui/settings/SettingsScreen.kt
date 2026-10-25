@@ -185,8 +185,9 @@ private fun TokenDialog(isSet: Boolean, onDismiss: () -> Unit, onSave: (String?)
         text = {
             Column {
                 Text(
-                    "A fine-grained token with no permissions is enough for public repositories. It is encrypted " +
-                        "with a key in the phone's secure hardware and sent only to api.github.com.",
+                    "A fine-grained token with no permissions is enough for public repositories. For private " +
+                        "repositories, give it read-only access to Contents. It is encrypted with a key in the phone's " +
+                        "secure hardware and sent only to api.github.com.",
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(

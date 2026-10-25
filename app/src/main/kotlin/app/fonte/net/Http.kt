@@ -78,7 +78,13 @@ class Http(context: Context) {
      * Streams [url] into [to] and hashes it on the way. Fails when the server sends no data for [STALL_MS], when the
      * size passes [maxBytes], or when fewer bytes arrive than announced.
      */
-    suspend fun download(url: String, to: File, maxBytes: Long, progress: (done: Long, total: Long) -> Unit): Download {
+    suspend fun download(
+        url: String,
+        to: File,
+        maxBytes: Long,
+        headers: Map<String, String> = emptyMap(),
+        progress: (done: Long, total: Long) -> Unit,
+    ): Download {
         val digest = MessageDigest.getInstance("SHA-256")
         var total = -1L
         var done = 0L
@@ -94,7 +100,7 @@ class Http(context: Context) {
                     }
                     exchange(
                         url,
-                        emptyMap(),
+                        headers,
                         onStart = { info ->
                             if (info.httpStatusCode != 200) throw IOException("Server answered HTTP ${info.httpStatusCode}")
                             val map = info.headers.asMap

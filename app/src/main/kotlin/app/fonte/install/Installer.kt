@@ -36,6 +36,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.net.URI
 import java.nio.channels.Channels
 import java.util.zip.ZipFile
 
@@ -44,7 +45,8 @@ import java.util.zip.ZipFile
  * - match the SHA-256 digest that the source publishes (GitHub);
  * - be a valid signed APK for this device's ABIs;
  * - have the package name the app had before;
- * - be signed with the pinned certificate (pinned at the first install or adoption; key rotation is followed).
+ * - be signed with the pinned certificate (pinned at the first install or adoption; key rotation is followed);
+ * - at a first install from F-Droid or IzzyOnDroid (nothing pinned yet), be in the repo's signed index.
  *
  * Sessions ask for no user action and for update ownership: later updates of apps Fonte installed need no prompt,
  * and other installers need the user's consent to update them. In the background the commit waits until the app
@@ -53,6 +55,8 @@ import java.util.zip.ZipFile
 class Installer(
     private val context: Context,
     http: Lazy<Http>,
+    /** The GitHub token, read off the main thread: with it, GitHub APKs download through the API (private repositories). */
+    private val githubToken: () -> String?,
     private val store: Store,
     private val packages: Packages,
     private val notifier: Notifier,
@@ -84,6 +88,7 @@ class Installer(
     private val downloads = Semaphore(MAX_PARALLEL)
     private val installer get() = context.packageManager.packageInstaller
     private val dir get() = File(context.cacheDir, "apk").apply { mkdirs() }
+    private val index = RepoIndex(http, File(context.cacheDir, "index"))
 
     /** Installs from the UI; a second tap while a task runs does nothing. */
     fun start(appId: String) {
@@ -131,6 +136,11 @@ class Installer(
         if (pin != null && !Packages.matches(pin, archive.current, archive.lineage)) {
             throw IOException("Refused: the APK is signed with a different key than the pinned one")
         }
+        // Nothing pinned: a first install. F-Droid and IzzyOnDroid sign their index, so it vouches for the file.
+        val kind = app.source.kind
+        if (pin == null && kind in RepoIndex.REPO_CERTS && archive.sha256 !in index.apkDigests(kind, pkg)) {
+            throw IOException("Refused: the APK is not in the signed ${kind.label} index")
+        }
         if (installed != null && archive.versionCode <= installed.versionCode) {
             // Same version (or older): nothing to install. Remember the release, so that it does not count as an update again.
             record(appId, pkg, release.tag, installed.versionCode, pin ?: Packages.pin(archive.current), installed.label)
@@ -155,10 +165,15 @@ class Installer(
         val candidates = if (release.assets.size > 1 && release.code != null) byAbi(release.assets) else release.assets.take(1)
         var lastError: IOException? = null
         for (asset in candidates) {
+            // The API URL needs the token; it works for private repositories, the browser URL does not.
+            val api = asset.api?.takeIf { runCatching { URI(it).host }.getOrNull() == GITHUB_API }
+            val auth = api?.let { a -> githubToken()?.let { a to it } }
+            val url = auth?.first ?: asset.url
+            val headers = auth?.let { mapOf("Accept" to "application/octet-stream", Http.AUTHORIZATION to "Bearer ${it.second}") }.orEmpty()
             val d = downloads.withPermit {
                 _tasks.update { it + (appId to Task.Downloading(0, asset.size)) }
                 var shown = -1L
-                http.download(asset.url, file, MAX_APK) { done, total ->
+                http.download(url, file, MAX_APK, headers) { done, total ->
                     val size = if (total > 0) total else asset.size
                     // One update per percent (or per MB without a size): the list redraws no more often than that.
                     val step = if (size > 0) done * 100 / size else done shr 20
@@ -172,7 +187,7 @@ class Installer(
                 throw IOException("Refused: the download does not match the published SHA-256")
             }
             _tasks.update { it + (appId to Task.Installing) }
-            val archive = read(file) ?: throw IOException("Not a valid signed APK")
+            val archive = read(file, d.sha256) ?: throw IOException("Not a valid signed APK")
             if (fits(file)) return archive
             lastError = IOException("No build for this device's processor (${Build.SUPPORTED_ABIS.first()})")
         }
@@ -206,9 +221,16 @@ class Installer(
         }.sortedBy { it.second }.map { it.first }.ifEmpty { assets }
     }
 
-    private class Archive(val packageName: String, val versionCode: Long, val versionName: String, val current: Set<String>, val lineage: Set<String>)
+    private class Archive(
+        val packageName: String,
+        val versionCode: Long,
+        val versionName: String,
+        val current: Set<String>,
+        val lineage: Set<String>,
+        val sha256: String,
+    )
 
-    private fun read(file: File): Archive? {
+    private fun read(file: File, sha256: String): Archive? {
         val pi = context.packageManager.getPackageArchiveInfo(
             file.path,
             PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
@@ -216,7 +238,7 @@ class Installer(
         val si = pi.signingInfo ?: return null
         val current = Packages.current(si)
         if (current.isEmpty()) return null
-        return Archive(pi.packageName, pi.longVersionCode, pi.versionName.orEmpty(), current, Packages.lineage(si))
+        return Archive(pi.packageName, pi.longVersionCode, pi.versionName.orEmpty(), current, Packages.lineage(si), sha256)
     }
 
     /** True when the APK has no native code, or native code for one of this device's ABIs. */
@@ -347,9 +369,10 @@ class Installer(
         return info.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0
     }
 
-    /** Removes APKs that a killed process left behind. */
+    /** Removes APKs that a killed process left behind, and the indexes of the last run. */
     fun cleanUp() {
         dir.listFiles()?.forEach { it.delete() }
+        index.clear()
     }
 
     private fun failure(status: Int, message: String?): String = when (status) {
@@ -367,6 +390,7 @@ class Installer(
         private const val MAX_APK = 2L shl 30
         private const val TAIL = 256 shl 10
         private const val WAIT_MS = 24 * 3600_000L
+        private const val GITHUB_API = "api.github.com"
         const val EXTRA_APP = "app.fonte.extra.APP"
         const val EXTRA_TAG = "app.fonte.extra.TAG"
         const val EXTRA_CODE = "app.fonte.extra.CODE"

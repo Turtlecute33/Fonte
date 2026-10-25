@@ -87,12 +87,13 @@ class Packages(context: Context) {
 
         /**
          * Does an APK signed with [current] (rotation history [lineage]) fit the [pinned] certificate? One pinned
-         * certificate may be in the history (the developer rotated the key); several must all still sign.
+         * certificate may be in the history (the developer rotated the key); several must all still sign. A pin with
+         * no certificate fits nothing.
          */
         fun matches(pinned: String, current: Set<String>, lineage: Set<String>): Boolean {
             val certs = pinned.split(',').filter { it.isNotEmpty() }.toSet()
             return when (certs.size) {
-                0 -> true
+                0 -> false
                 1 -> certs.first() in lineage
                 else -> certs == current
             }

@@ -15,6 +15,10 @@ class LinksTest {
         assertEquals(Source(SourceKind.GitHub, "github.com", "owner/repo"), known("Look at this: https://www.github.com/owner/repo.git, nice"))
         assertEquals(Source(SourceKind.GitHub, "github.com", "owner/repo"), known("github.com/owner/repo"))
         assertNull(known("https://github.com/owner"))
+        assertNull(known("https://github.com/../user"))
+        assertNull(known("https://github.com/o/.."))
+        assertNull(known("https://gitlab.com/a/./b"))
+        assertEquals(Source(SourceKind.GitHub, "github.com", "o/.r"), known("https://github.com/o/.r"))
     }
 
     @Test fun gitlabWithSubgroups() {

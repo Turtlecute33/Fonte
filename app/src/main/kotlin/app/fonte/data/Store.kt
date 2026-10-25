@@ -86,7 +86,8 @@ class Store(dir: File, private val scope: CoroutineScope) {
 
     internal companion object {
         const val TAG = "FonteStore"
-        const val VERSION = 1
+        /** 2: GitHub assets keep their API URL. */
+        const val VERSION = 2
         const val COALESCE_MS = 250L
         const val UNREADABLE = "apps.json.unreadable"
 
@@ -95,10 +96,14 @@ class Store(dir: File, private val scope: CoroutineScope) {
             .put("apps", JSONArray(d.apps.map { it.json() }))
             .put("settings", d.settings.json())
 
-        fun decode(o: JSONObject) = Data(
-            apps = o.list("apps") { app() },
-            settings = o.optJSONObject("settings")?.settings() ?: Settings(),
-        )
+        fun decode(o: JSONObject): Data {
+            val apps = o.list("apps") { app() }
+            return Data(
+                // Version 1 kept no API URL for GitHub assets: without the ETag, the next check reads the releases again.
+                apps = if (o.optInt("version", 1) < 2) apps.map { if (it.source.kind == SourceKind.GitHub) it.copy(etag = null) else it } else apps,
+                settings = o.optJSONObject("settings")?.settings() ?: Settings(),
+            )
+        }
 
         fun <T> JSONObject.list(name: String, item: JSONObject.() -> T): List<T> {
             val a = optJSONArray(name) ?: return emptyList()
@@ -138,7 +143,7 @@ class Store(dir: File, private val scope: CoroutineScope) {
 
         private fun Release.json() = JSONObject().put("tag", tag).put("version", version).put("code", code).put("date", date)
             .put("notes", notes).put("page", page)
-            .put("assets", JSONArray(assets.map { JSONObject().put("name", it.name).put("url", it.url).put("size", it.size).put("sha256", it.sha256) }))
+            .put("assets", JSONArray(assets.map { JSONObject().put("name", it.name).put("url", it.url).put("size", it.size).put("sha256", it.sha256).put("api", it.api) }))
 
         private fun JSONObject.release() = Release(
             tag = getString("tag"),
@@ -147,7 +152,7 @@ class Store(dir: File, private val scope: CoroutineScope) {
             date = long("date"),
             notes = optString("notes"),
             page = str("page"),
-            assets = list("assets") { Asset(getString("name"), getString("url"), optLong("size"), str("sha256")) },
+            assets = list("assets") { Asset(getString("name"), getString("url"), optLong("size"), str("sha256"), str("api")) },
         )
 
         private fun Settings.json() = JSONObject().put("background", background).put("intervalHours", intervalHours)

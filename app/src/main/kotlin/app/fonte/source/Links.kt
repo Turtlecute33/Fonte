@@ -16,7 +16,8 @@ object Links {
     private val URL = Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE)
     private val BARE = Regex("""^[a-z0-9.-]+\.[a-z]{2,}/\S+""", RegexOption.IGNORE_CASE)
     private val PACKAGE = Regex("""^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$""")
-    private val NAME = Regex("""^[A-Za-z0-9_.-]+$""")
+    /** Owner, repository and group names; "." and ".." are no names (they would move the API path). */
+    private val NAME = Regex("""^(?!\.\.?$)[A-Za-z0-9_.-]+$""")
 
     fun isPackageName(s: String) = PACKAGE.matches(s)
 

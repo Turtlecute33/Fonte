@@ -32,8 +32,11 @@ data class Source(val kind: SourceKind, val host: String, val path: String) {
     val defaultName: String get() = path.substringAfterLast('/')
 }
 
-/** A downloadable APK. [sha256] is set when the source publishes a digest (GitHub). */
-data class Asset(val name: String, val url: String, val size: Long = 0, val sha256: String? = null)
+/**
+ * A downloadable APK. [sha256] is set when the source publishes a digest (GitHub). [api] is the GitHub API URL of the
+ * file: with a token it also downloads from private repositories.
+ */
+data class Asset(val name: String, val url: String, val size: Long = 0, val sha256: String? = null, val api: String? = null)
 
 data class Release(
     /** The tag (code hosts) or version name (F-Droid repos) that identifies the release. */

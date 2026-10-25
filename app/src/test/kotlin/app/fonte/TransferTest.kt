@@ -46,17 +46,42 @@ class TransferTest {
     private val source = Source(SourceKind.GitHub, "github.com", "o/r")
     private val tracked = TrackedApp(
         id = source.id, source = source, name = "R", packageName = "a.b", prerelease = true, apkFilter = "x", autoUpdate = false,
-        cert = "aa,bb", installedTag = "v1", installedCode = 3,
-        latest = Release("v2", "2", null, 1L, "notes", "https://p", listOf(Asset("a.apk", "https://x/a.apk", 9, "ff"))),
+        cert = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", installedTag = "v1", installedCode = 3,
+        latest = Release("v2", "2", null, 1L, "notes", "https://p", listOf(Asset("a.apk", "https://x/a.apk", 9, "ff", "https://api.github.com/x/1"))),
         etag = "W/\"e\"", checkedAt = 5, error = "boom", addedAt = 7,
     )
 
     @Test fun fonteExportRoundTrip() {
         val e = Transfer.parse(Transfer.export(listOf(tracked))).single()
         assertEquals(source, e.source)
-        assertEquals("aa,bb", e.cert)
+        assertEquals("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", e.cert)
         assertFalse(e.autoUpdate)
         assertEquals("x", e.filter)
+    }
+
+    private val a = "a".repeat(64)
+
+    @Test fun fonteImportChecksSourcesAndPins() {
+        fun entry(kind: String, host: String, path: String, cert: String = "") =
+            """{"kind":"$kind","host":"$host","path":"$path","url":"","cert":"$cert"}"""
+        val e = Transfer.parse(
+            """{"fonte":1,"apps":[${listOf(
+                entry("GitHub", "github.com", "o/r", a.uppercase()),
+                entry("GitLab", "git.example.org", "team/app", ""),
+                entry("GitHub", "evil.example", "o/r"),
+                entry("Forgejo", "github.com@evil.example", "o/r"),
+                entry("GitHub", "github.com", "../user"),
+                entry("FDroid", "evil.example", "a.b"),
+                entry("Izzy", "apt.izzysoft.de", "a.b", "zz"),
+            ).joinToString(",")}]}""",
+        )
+        assertEquals(Source(SourceKind.GitHub, "github.com", "o/r"), e[0].source)
+        assertEquals(a, e[0].cert)
+        assertEquals(Source(SourceKind.GitLab, "git.example.org", "team/app"), e[1].source)
+        assertNull(e[1].cert)
+        for (i in 2..5) assertNull(e[i].source, "entry $i")
+        assertEquals(Source(SourceKind.Izzy, "apt.izzysoft.de", "a.b"), e[6].source)
+        assertNull(e[6].cert)
     }
 
     @Test fun storeRoundTrip() {
@@ -64,11 +89,20 @@ class TransferTest {
         assertEquals(d, Store.decode(JSONObject(Store.encode(d).toString())))
     }
 
+    @Test fun storeVersion1ReadsGitHubReleasesAgain() {
+        val fdroid = Source(SourceKind.FDroid, "f-droid.org", "a.b").let { tracked.copy(id = it.id, source = it) }
+        val v1 = Store.encode(Data(listOf(tracked, fdroid))).put("version", 1)
+        val apps = Store.decode(JSONObject(v1.toString())).apps
+        assertNull(apps[0].etag)
+        assertEquals(tracked.etag, apps[1].etag)
+    }
+
     @Test fun pins() {
         assertTrue(Packages.matches("aa", setOf("bb"), setOf("aa", "bb")))
         assertFalse(Packages.matches("aa", setOf("bb"), setOf("bb")))
         assertTrue(Packages.matches("aa,bb", setOf("aa", "bb"), setOf("aa", "bb")))
         assertFalse(Packages.matches("aa,bb", setOf("aa"), setOf("aa", "bb")))
+        assertFalse(Packages.matches("", setOf("aa"), setOf("aa")))
     }
 
     @Test fun zipTail() {

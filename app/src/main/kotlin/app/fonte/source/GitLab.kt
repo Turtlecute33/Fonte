@@ -13,8 +13,9 @@ import java.util.concurrent.ConcurrentHashMap
  * links to ("/uploads/<hash>/<file>.apk"); an upload URL needs the numeric project ID, read once per run.
  */
 object GitLab : SourceApi {
-    private val UPLOAD = Regex("""\]\((/uploads/[0-9a-f]+/[^)\s]+)\)""")
-    private val APK_LINK = Regex("""\((https://[^)\s]+\.apk)\)""", RegexOption.IGNORE_CASE)
+    // No "(" inside the link: a failed match stops at the next one, so a hostile release text stays fast.
+    private val UPLOAD = Regex("""\]\((/uploads/[0-9a-f]+/[^()\s]+)\)""")
+    private val APK_LINK = Regex("""\((https://[^()\s]+\.apk)\)""", RegexOption.IGNORE_CASE)
     private val projectIds = ConcurrentHashMap<String, Long>()
 
     override suspend fun check(app: TrackedApp, ctx: Ctx): Check {

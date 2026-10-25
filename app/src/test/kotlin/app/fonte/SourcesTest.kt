@@ -26,12 +26,13 @@ class SourcesTest {
           {"tag_name":"v2-beta","draft":false,"prerelease":true,"assets":[{"name":"a.apk","size":1,"browser_download_url":"https://g/2.apk"}]},
           {"tag_name":"cli-1","draft":false,"prerelease":false,"assets":[{"name":"cli.zip","size":1,"browser_download_url":"https://g/c.zip"}]},
           {"tag_name":"v1.0.1","draft":false,"prerelease":false,"published_at":"2026-10-01T10:00:00Z","body":"**Fixed** [bug](https://x)","html_url":"https://github.com/o/r/releases/v1.0.1",
-           "assets":[{"name":"app-arm64-v8a.apk","size":10,"browser_download_url":"https://g/1.apk","digest":"sha256:ABCDEF"}]}
+           "assets":[{"name":"app-arm64-v8a.apk","size":10,"browser_download_url":"https://g/1.apk","digest":"sha256:ABCDEF","url":"https://api.github.com/repos/o/r/releases/assets/7"}]}
         ]"""
         val stable = Sources.pick(GitHub.parse(json), app(SourceKind.GitHub, "o/r"), abis)!!
         assertEquals("v1.0.1", stable.tag)
         assertEquals("1.0.1", stable.version)
         assertEquals("abcdef", stable.assets.single().sha256)
+        assertEquals("https://api.github.com/repos/o/r/releases/assets/7", stable.assets.single().api)
         assertEquals("Fixed bug", stable.notes)
         assertEquals(1790848800000, stable.date)
         assertEquals("v2-beta", Sources.pick(GitHub.parse(json), app(SourceKind.GitHub, "o/r", prerelease = true), abis)!!.tag)
@@ -79,5 +80,12 @@ class SourcesTest {
         val n = Notes.plain("## New\n<!-- hidden -->\n- **Bold** item ![img](https://x/i.png)\n* <b>tag</b> &amp; more\n\n\n\nEnd")
         assertEquals("New\n\n• Bold item \n• tag & more\n\nEnd", n)
         assertTrue(Notes.plain("x".repeat(7000)).length <= 6001)
+        assertEquals("a\n-b\n  • c", Notes.plain("a\n-b\n  - c"))
+    }
+
+    /** Before the fix, 125,000 "<" (GitHub's limit for a release text) took 12 s on a laptop. */
+    @Test(timeout = 5_000) fun hostileNotesStayFast() = runTest {
+        for (s in listOf("<", "<!--", "![", "[", "[a](", "\n", " \n")) Notes.plain(s.repeat(2_000_000 / s.length))
+        GitLab.parse("""[{"tag_name":"1","description":"${"(https://".repeat(200_000)}${"](/uploads/a/".repeat(100_000)}"}]""", "h") { 1L }
     }
 }

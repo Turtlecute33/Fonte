@@ -19,16 +19,22 @@ object GitHub : SourceApi {
     override suspend fun check(app: TrackedApp, ctx: Ctx): Check {
         val now = System.currentTimeMillis()
         if (now < blockedUntil) throw limitError(blockedUntil)
+        val token = ctx.githubToken()
         val headers = buildMap {
             put("Accept", "application/vnd.github+json")
             put("X-GitHub-Api-Version", "2022-11-28")
-            ctx.githubToken()?.let { put(Http.AUTHORIZATION, "Bearer $it") }
+            token?.let { put(Http.AUTHORIZATION, "Bearer $it") }
             Sources.etagFor(app)?.let { put("If-None-Match", it) }
         }
         val r = ctx.http.get("https://api.github.com/repos/${app.source.path}/releases?per_page=${Sources.PAGE}", headers)
         when (r.code) {
             304 -> return Check.Same
             200 -> Unit
+            // GitHub answers 404, not 403, for a private repository that the request may not read.
+            404 -> throw IOException(
+                if (token == null) "Not found on GitHub. A private repository needs a token in Settings."
+                else "Not found on GitHub. For a private repository, the token needs read access to Contents.",
+            )
             403, 429 -> if (r.header("x-ratelimit-remaining") == "0" || r.header("retry-after") != null) {
                 blockedUntil = r.header("x-ratelimit-reset")?.toLongOrNull()?.times(1000)
                     ?: (now + (r.header("retry-after")?.toLongOrNull() ?: 900) * 1000)
@@ -57,6 +63,7 @@ object GitHub : SourceApi {
                         url = a.getString("browser_download_url"),
                         size = a.optLong("size"),
                         sha256 = a.optString("digest").takeIf { it.startsWith("sha256:") }?.removePrefix("sha256:")?.lowercase(),
+                        api = a.optString("url").ifEmpty { null },
                     )
                 },
             )

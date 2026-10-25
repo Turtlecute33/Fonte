@@ -28,6 +28,10 @@ object Transfer {
     )
 
     private const val FORMAT = "fonte"
+    private val CERT = Regex("^[0-9a-f]{64}(,[0-9a-f]{64})*$")
+
+    /** A pin in the stored form (SHA-256 digests, comma-separated), or null. */
+    fun cert(text: String?): String? = text?.trim()?.lowercase()?.takeIf(CERT::matches)
 
     /** Throws [org.json.JSONException] when [text] is no app list. */
     fun parse(text: String): List<Entry> = when (val root = JSONTokener(text).nextValue()) {
@@ -67,7 +71,9 @@ object Transfer {
     }
 
     private fun fonte(root: JSONObject): List<Entry> = root.list("apps") {
-        val source = runCatching { Source(SourceKind.valueOf(getString("kind")), getString("host"), getString("path")) }.getOrNull()
+        val stated = runCatching { Source(SourceKind.valueOf(getString("kind")), getString("host"), getString("path")) }.getOrNull()
+        // The checks of a pasted link: a file cannot name a host or path that a link could not.
+        val source = stated?.let { s -> (Links.parse(s.webUrl, s.kind) as? Links.Parsed.Known)?.source?.takeIf { it == s } }
         Entry(
             url = source?.webUrl ?: optString("url"),
             source = source,
@@ -76,7 +82,7 @@ object Transfer {
             prerelease = optBoolean("prerelease"),
             filter = optString("filter"),
             autoUpdate = optBoolean("autoUpdate", true),
-            cert = str("cert"),
+            cert = cert(str("cert")),
         )
     }
 

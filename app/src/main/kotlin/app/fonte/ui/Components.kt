@@ -200,7 +200,10 @@ fun copy(context: Context, label: String, text: String) {
     context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
+/** Opens a web page. Only https: a link that a server sends cannot open a deep link into another app. */
 fun openLink(context: Context, url: String) {
-    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    val uri = Uri.parse(url).normalizeScheme()
+    if (uri.scheme != "https" || uri.host.isNullOrEmpty()) return
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 

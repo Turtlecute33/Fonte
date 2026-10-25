@@ -9,5 +9,4 @@
   </defs>
   <rect x="18" y="18" width="72" height="72" rx="20" fill="url(#bg)"/>
   <path fill="#7FD8E4" d="M54,29 C54,29 36,48.5 36,62 A18,18 0 0,0 72,62 C72,48.5 54,29 54,29 Z"/>
-  <path d="M54,50 L54,70 M46.5,62.5 L54,70 L61.5,62.5" fill="none" stroke="#0F2A2E" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
