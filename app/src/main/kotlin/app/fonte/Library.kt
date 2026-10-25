@@ -1,0 +1,169 @@
+package app.fonte
+
+import android.util.Log
+import app.fonte.data.Source
+import app.fonte.data.SourceKind
+import app.fonte.data.Store
+import app.fonte.data.TrackedApp
+import app.fonte.install.Packages
+import app.fonte.source.Check
+import app.fonte.source.Ctx
+import app.fonte.source.Links
+import app.fonte.source.Sources
+import app.fonte.transfer.Transfer
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import java.io.IOException
+
+/** The tracked apps: add, check, change, remove, import and export. */
+class Library(private val store: Store, private val packages: Packages, private val ctx: Ctx) {
+    private val _checking = MutableStateFlow(false)
+    val checking: StateFlow<Boolean> = _checking.asStateFlow()
+    private val checkLock = Mutex()
+
+    /** Checks every app, [PARALLEL] at a time (one connection per host carries them). Returns at once if a check runs. */
+    suspend fun checkAll() {
+        if (!checkLock.tryLock()) return
+        _checking.value = true
+        try {
+            withContext(Dispatchers.IO) {
+                val limit = Semaphore(PARALLEL)
+                coroutineScope { store.apps.map { app -> async { limit.withPermit { check(app.id) } } }.awaitAll() }
+            }
+        } finally {
+            _checking.value = false
+            checkLock.unlock()
+        }
+    }
+
+    suspend fun check(id: String) = withContext(Dispatchers.IO) {
+        val app = store.app(id) ?: return@withContext
+        val now = System.currentTimeMillis()
+        try {
+            val c = Sources.api(app.source.kind).check(app, ctx)
+            Log.d(TAG, "Check ${app.id}: ${if (c is Check.Found) c.release?.tag ?: "no APK" else "not modified"}")
+            when (c) {
+                Check.Same -> store.updateApp(id) { it.copy(checkedAt = now, error = null) }
+                is Check.Found -> store.updateApp(id) {
+                    it.copy(
+                        latest = c.release,
+                        etag = c.etag.takeIf { c.release != null },
+                        checkedAt = now,
+                        error = if (c.release == null) NO_APK else null,
+                    )
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.d(TAG, "Check ${app.id} failed", e)
+            store.updateApp(id) { it.copy(checkedAt = now, error = e.message ?: "Check failed") }
+        }
+    }
+
+    /** Resolves [link], reads its latest release, and adds the app. An app that is installed already is adopted. */
+    suspend fun add(link: String, prerelease: Boolean, filter: String): TrackedApp = withContext(Dispatchers.IO) {
+        val source = Sources.resolve(link, ctx)
+        store.app(source.id)?.let { throw IOException("${it.name} is in the list already") }
+        val draft = newApp(source, null, null, prerelease, filter, true, null)
+        val found = Sources.api(source.kind).check(draft, ctx) as? Check.Found
+        val release = found?.release ?: throw IOException(NO_APK)
+        val app = draft.copy(latest = release, etag = found.etag, checkedAt = System.currentTimeMillis())
+        store.update { d -> if (d.apps.any { it.id == app.id }) d else d.copy(apps = d.apps + app) }
+        app
+    }
+
+    data class Imported(val added: Int, val known: Int, val skipped: List<String>)
+
+    /** Adds the apps of an Obtainium or Fonte export. Releases are read afterwards by [checkAll]. */
+    suspend fun import(text: String): Imported = withContext(Dispatchers.IO) {
+        val entries = try {
+            Transfer.parse(text)
+        } catch (e: Exception) {
+            throw IOException("Not an Obtainium or Fonte export", e)
+        }
+        val added = ArrayList<TrackedApp>()
+        val skipped = ArrayList<String>()
+        var known = 0
+        for (e in entries) {
+            // No request to hosts that the link alone does not name as a supported source.
+            val source = e.source ?: (Links.parse(e.url, e.hint) as? Links.Parsed.Known)?.source.takeIf { !e.unsupported }
+            if (source == null) {
+                skipped += e.name ?: e.url
+                continue
+            }
+            val all = store.apps + added
+            if (all.any { it.id == source.id || e.packageName != null && it.packageName == e.packageName }) {
+                known++
+                continue
+            }
+            added += newApp(source, e.packageName, e.name, e.prerelease, e.filter, e.autoUpdate, e.cert)
+        }
+        store.update { d -> d.copy(apps = d.apps + added.filter { a -> d.apps.none { it.id == a.id } }) }
+        Imported(added.size, known, skipped)
+    }
+
+    fun export(): String = Transfer.export(store.apps)
+
+    /** A new entry. An installed package is adopted: its label, and its signing certificate as the pin. */
+    private fun newApp(
+        source: Source,
+        pkg: String?,
+        name: String?,
+        prerelease: Boolean,
+        filter: String,
+        autoUpdate: Boolean,
+        cert: String?,
+    ): TrackedApp {
+        val packageName = pkg ?: source.path.takeIf { source.kind == SourceKind.FDroid || source.kind == SourceKind.Izzy }
+        val installed = packageName?.let(packages::info)
+        return TrackedApp(
+            id = source.id,
+            source = source,
+            name = installed?.label ?: name ?: defaultName(source),
+            packageName = packageName,
+            prerelease = prerelease,
+            apkFilter = filter.trim(),
+            autoUpdate = autoUpdate,
+            cert = cert ?: installed?.cert,
+            addedAt = System.currentTimeMillis(),
+        )
+    }
+
+    /** Changes the options; a change of release choice drops the ETag, so the next check reads the list again. */
+    suspend fun setOptions(id: String, prerelease: Boolean, filter: String, autoUpdate: Boolean) {
+        val before = store.app(id) ?: return
+        val reselect = before.prerelease != prerelease || before.apkFilter != filter.trim()
+        store.updateApp(id) { it.copy(prerelease = prerelease, apkFilter = filter.trim(), autoUpdate = autoUpdate, etag = if (reselect) null else it.etag) }
+        if (reselect) check(id)
+    }
+
+    fun remove(id: String) = store.update { d -> d.copy(apps = d.apps.filter { it.id != id }) }
+
+    /** Forgets the pinned certificate: the next install pins the certificate of the APK it installs. */
+    fun resetPin(id: String) = store.updateApp(id) { it.copy(cert = null) }
+
+    companion object {
+        private const val TAG = "FonteLibrary"
+        private const val PARALLEL = 8
+        const val NO_APK = "No APK for this device in the recent releases"
+
+        /** Repository name, or for F-Droid packages the last part of the package name ("org.schabi.newpipe" → "Newpipe"). */
+        fun defaultName(source: Source): String =
+            if (source.kind == SourceKind.FDroid || source.kind == SourceKind.Izzy) {
+                source.path.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+            } else {
+                source.defaultName
+            }
+    }
+}
