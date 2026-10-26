@@ -42,14 +42,14 @@ class Store(dir: File, private val scope: CoroutineScope) {
     /** Reads the file. Call once, off the main thread. */
     fun load() {
         try {
-            val text = file.readFully().decodeToString()
-            _state.value = runCatching { decode(JSONObject(text)) }.getOrElse {
-                // Keep a damaged file aside, never overwrite it: the user can still send it for repair.
-                Log.w(TAG, "apps.json unreadable, kept as $UNREADABLE")
+            _state.value = runCatching { decode(JSONObject(file.readFully().decodeToString())) }.getOrElse { e ->
+                // No file yet: the first start.
+                if (e is FileNotFoundException && !file.baseFile.exists()) return
+                // Keep a damaged or unreadable file aside, never overwrite it: the user can still send it for repair.
+                Log.w(TAG, "apps.json unreadable (${e.javaClass.simpleName}), kept as $UNREADABLE")
                 file.baseFile.renameTo(File(file.baseFile.parentFile, UNREADABLE))
                 Data()
             }
-        } catch (_: FileNotFoundException) {
         } finally {
             loaded.complete(Unit)
         }
