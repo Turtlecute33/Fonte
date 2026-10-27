@@ -60,7 +60,11 @@ android {
 
     packaging {
         resources {
-            excludes += setOf("META-INF/versions/**", "META-INF/*.md", "META-INF/LICENSE*", "META-INF/NOTICE*", "DebugProbesKt.bin", "kotlin/**")
+            // Licence files also in the library folders (META-INF/androidx/...): the README names the licences.
+            excludes += setOf(
+                "META-INF/versions/**", "META-INF/*.md", "META-INF/LICENSE*", "META-INF/NOTICE*",
+                "META-INF/**/LICENSE*", "META-INF/**/NOTICE*", "DebugProbesKt.bin", "kotlin/**",
+            )
         }
     }
 
