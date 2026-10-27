@@ -17,6 +17,8 @@ import java.util.jar.JarFile
  * (the key that the F-Droid client ships), and the index must match the digest and size in entry.jar.
  * The index is large (F-Droid: about 70 MB, compressed on the wire), so only first installs read it. The file stays
  * in the cache until the next app start, for more first installs.
+ * Fonte keeps no entry.json timestamp, so an older signed entry.jar also passes: a hostile server can offer an older
+ * version that an older index lists.
  */
 class RepoIndex(http: Lazy<Http>, private val dir: File) {
     private val http: Http by http

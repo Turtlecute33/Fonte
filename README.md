@@ -114,7 +114,10 @@ Release builds are signed with the key that `scripts/make-release-key.sh` makes;
 - **F-Droid and IzzyOnDroid**: the version code of the suggested version (with pre-releases on, the
   highest one). Fonte reads the small per-package API, not the multi-megabyte index. For apps with
   one build per ABI, a ranged request reads only the ZIP directory of each build, to find the
-  build for this device before the download.
+  build for this device before the download. The per-package API has no signature, so Fonte
+  trusts its HTTPS answer. The pinned certificate and the version code protect the APK: a hostile
+  server can only hide updates. At a first install, it can offer an older version that a signed
+  index lists.
 - **GitHub, GitLab, Codeberg, Forgejo and Gitea**: the 10 newest releases in one request. Fonte takes
   the newest one with an APK for this device. Drafts are skipped, and pre-releases are skipped
   unless you turn them on.

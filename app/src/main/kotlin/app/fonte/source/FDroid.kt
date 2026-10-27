@@ -10,6 +10,8 @@ import org.json.JSONObject
  * F-Droid and IzzyOnDroid through their small per-package API, not the multi-megabyte index. The repo's suggested
  * version is the stable one; with pre-releases on, the highest version code. Apps with one build per ABI list one
  * version code per build: all of them are candidates, and the installer picks the one that fits.
+ * The API has no signature: Fonte trusts its HTTPS answer. The pin and the version code protect the APK, so a hostile
+ * server can only hide updates; only a first install checks the signed index ([app.fonte.install.RepoIndex]).
  */
 object FDroid : SourceApi {
     fun base(kind: SourceKind) = if (kind == SourceKind.Izzy) "https://apt.izzysoft.de/fdroid" else "https://f-droid.org"
