@@ -120,7 +120,8 @@ Release builds are signed with the key that `scripts/make-release-key.sh` makes;
   index lists.
 - **GitHub, GitLab, Codeberg, Forgejo and Gitea**: the 10 newest releases in one request. Fonte takes
   the newest one with an APK for this device. Drafts are skipped, and pre-releases are skipped
-  unless you turn them on.
+  unless you turn them on. On GitHub, when all 10 are pre-releases (for example the nightly builds
+  of Brave), one more request reads the stable release that GitHub marks as latest.
 - After Fonte installs an app, it remembers the release tag and the version code. The next checks
   compare tags, which is exact. Before that, Fonte compares the version name with the tag.
 - If the downloaded APK has the version that is installed already, Fonte installs nothing and

@@ -69,6 +69,31 @@ class SourcesTest {
         assertNull(http.sent[2][Http.AUTHORIZATION])
     }
 
+    /** A full page of nightly pre-releases, as Brave publishes them, and a stable release at /releases/latest. */
+    @Test fun githubReadsTheLatestStableReleaseWhenThePageHasOnlyPreReleases() = runTest {
+        val apk = """"assets":[{"name":"app-arm64-v8a.apk","size":1,"browser_download_url":"https://g/a.apk"}]"""
+        val nightlies = (1..Sources.PAGE).joinToString(",", "[", "]") { """{"tag_name":"v1.$it.0","prerelease":true,$apk}""" }
+        val urls = ArrayList<String>()
+        var latestCode = 200
+        val http = object : HttpGet {
+            override suspend fun get(url: String, headers: Map<String, String>, maxBytes: Int): Http.Response {
+                urls += url
+                if (!url.endsWith("/releases/latest")) return Http.Response(200, url, emptyMap(), nightlies.toByteArray())
+                return Http.Response(latestCode, url, emptyMap(), """{"tag_name":"v1.0.0","prerelease":false,$apk}""".toByteArray())
+            }
+        }
+        val ctx = Ctx(lazyOf(http), { null }, abis)
+        assertEquals("v1.0.0", (GitHub.check(app(SourceKind.GitHub, "o/r"), ctx) as Check.Found).release?.tag)
+        assertEquals(listOf("https://api.github.com/repos/o/r/releases?per_page=10", "https://api.github.com/repos/o/r/releases/latest"), urls)
+        // With pre-releases: the newest nightly, from one request.
+        urls.clear()
+        assertEquals("v1.1.0", (GitHub.check(app(SourceKind.GitHub, "o/r", prerelease = true), ctx) as Check.Found).release?.tag)
+        assertEquals(1, urls.size)
+        // No stable release at all: no release, and no error.
+        latestCode = 404
+        assertNull((GitHub.check(app(SourceKind.GitHub, "o/r"), ctx) as Check.Found).release)
+    }
+
     @Test fun forgejo() {
         val json = """[{"tag_name":"0.95.1","draft":false,"prerelease":false,"published_at":"2026-10-09T11:04:35+02:00","body":"",
           "assets":[{"name":"banglejs-0.95.1.apk","size":5,"browser_download_url":"https://codeberg.org/b.apk"},{"name":"gadgetbridge-0.95.1.apk","size":6,"browser_download_url":"https://codeberg.org/g.apk"}]}]"""
