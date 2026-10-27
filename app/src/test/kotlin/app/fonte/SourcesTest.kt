@@ -69,6 +69,22 @@ class SourcesTest {
         assertNull(http.sent[2][Http.AUTHORIZATION])
     }
 
+    /** The limit answers of GitHub. Each reset time is past, so that the other tests in this JVM are not blocked. */
+    @Test fun githubRateLimit() = runTest {
+        suspend fun error(code: Int, vararg answer: Pair<String, String>): String? {
+            val http = object : HttpGet {
+                override suspend fun get(url: String, headers: Map<String, String>, maxBytes: Int) =
+                    Http.Response(code, url, answer.associate { (k, v) -> k to listOf(v) }, ByteArray(0))
+            }
+            return runCatching { GitHub.check(app(SourceKind.GitHub, "o/r"), Ctx(lazyOf(http), { null }, abis)) }.exceptionOrNull()?.message
+        }
+        assertTrue(error(403, "X-RateLimit-Remaining" to "0", "X-RateLimit-Reset" to "1")!!.startsWith("GitHub limit reached until"))
+        assertTrue(error(429, "Retry-After" to "0")!!.startsWith("GitHub limit reached until"))
+        // A 403 with no limit headers is a refusal, not the limit.
+        assertEquals("GitHub refused the request (HTTP 403)", error(403))
+        assertEquals("GitHub refused the request (HTTP 429)", error(429))
+    }
+
     /** A full page of nightly pre-releases, as Brave publishes them, and a stable release at /releases/latest. */
     @Test fun githubReadsTheLatestStableReleaseWhenThePageHasOnlyPreReleases() = runTest {
         val apk = """"assets":[{"name":"app-arm64-v8a.apk","size":1,"browser_download_url":"https://g/a.apk"}]"""

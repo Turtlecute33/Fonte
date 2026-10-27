@@ -156,7 +156,8 @@ Run the JVM tests, lint and the two builds:
 ```
 
 The tests cover the link parser, the APK choice, the version compare, the parsers of all
-sources, the import formats, the store and the certificate pins.
+sources, the import formats, the store, the certificate pins, the install gates, the redirect
+rule for the token and the GitHub limit.
 
 On an Android 15 emulator, these steps were tested with real sources: add apps from each
 source, first install, an update of an app that another installer owns, a silent update in

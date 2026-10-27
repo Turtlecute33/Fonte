@@ -149,7 +149,7 @@ class Http(context: Context) : HttpGet {
                 is Outcome.Done -> return outcome.info
                 is Outcome.Moved -> {
                     target = outcome.url
-                    sent = sent.filterKeys { !it.equals(AUTHORIZATION, ignoreCase = true) }
+                    sent = withoutAuth(sent)
                 }
             }
         }
@@ -173,6 +173,18 @@ class Http(context: Context) : HttpGet {
         request.start()
     }
 
+    /** What to do with a redirect ([nextHop]). */
+    sealed interface Hop {
+        /** Follow it in the same request, with the same headers. */
+        data object Follow : Hop
+
+        /** Stop, and send a new request to [url] with no Authorization header ([withoutAuth]). */
+        data class Restart(val url: String) : Hop
+
+        /** Not https, or no host. */
+        data object Refuse : Hop
+    }
+
     private sealed interface Outcome {
         class Done(val info: UrlResponseInfo) : Outcome
         class Moved(val url: String) : Outcome
@@ -190,14 +202,13 @@ class Http(context: Context) : HttpGet {
         private var moved: String? = null
 
         override fun onRedirectReceived(request: UrlRequest, info: UrlResponseInfo, newLocationUrl: String) {
-            val next = runCatching { URI(newLocationUrl) }.getOrNull()
-            when {
-                next == null || next.scheme != "https" || next.host == null -> abort(request, IOException("Refused a redirect to an insecure address"))
-                credentials && !next.host.equals(host, ignoreCase = true) -> {
-                    moved = newLocationUrl
+            when (val hop = nextHop(host, newLocationUrl, credentials)) {
+                Hop.Refuse -> abort(request, IOException("Refused a redirect to an insecure address"))
+                is Hop.Restart -> {
+                    moved = hop.url
                     request.cancel()
                 }
-                else -> request.followRedirect()
+                Hop.Follow -> request.followRedirect()
             }
         }
 
@@ -250,6 +261,19 @@ class Http(context: Context) : HttpGet {
         private const val BUFFER = 256 shl 10
         private const val TIMEOUT_MS = 30_000L
         private const val STALL_MS = 45_000L
+
+        /** Only https; a request with [credentials] that goes to another host starts again without them. */
+        fun nextHop(host: String, location: String, credentials: Boolean): Hop {
+            val next = runCatching { URI(location) }.getOrNull()
+            return when {
+                next == null || next.scheme != "https" || next.host == null -> Hop.Refuse
+                credentials && !next.host.equals(host, ignoreCase = true) -> Hop.Restart(location)
+                else -> Hop.Follow
+            }
+        }
+
+        /** [headers] with no Authorization header, in any letter case. */
+        fun withoutAuth(headers: Map<String, String>) = headers.filterKeys { !it.equals(AUTHORIZATION, ignoreCase = true) }
 
         fun requireHttps(url: String) {
             val uri = runCatching { URI(url) }.getOrNull()

@@ -50,6 +50,7 @@ import java.util.zip.ZipFile
  * - have the package name the app had before;
  * - be signed with the pinned certificate (pinned at the first install or adoption; key rotation is followed);
  * - at a first install from F-Droid or IzzyOnDroid (nothing pinned yet), be in the repo's signed index.
+ * [Gate] decides the last three, and if the version is newer than the installed one.
  *
  * Sessions ask for no user action and for update ownership: later updates of apps Fonte installed need no prompt,
  * and other installers need the user's consent to update them. In the background the commit waits until the app
@@ -147,28 +148,25 @@ class Installer(
         val archive = fetch(appId, release, file)
 
         val pkg = archive.packageName
-        if (app.packageName != null && app.packageName != pkg) throw IOException("The APK is $pkg, not ${app.packageName}")
         val installed = packages.info(pkg)
-        val pin = app.cert ?: installed?.cert
-        if (pin != null && !Packages.matches(pin, archive.current, archive.lineage)) {
-            throw IOException("Refused: the APK is signed with a different key than the pinned one")
-        }
-        // Nothing pinned: a first install. F-Droid and IzzyOnDroid sign their index, so it vouches for the file.
         val kind = app.source.kind
-        if (pin == null && kind in RepoIndex.REPO_CERTS) {
+        val decision = Gate.decide(app, archive, installed) {
             val digests = index.apkDigests(kind, pkg, progress(appId, 0) { done, total -> Task.Checking(kind.label, done, total) })
             _tasks.update { it + (appId to Task.Installing) }
-            if (archive.sha256 !in digests) throw IOException("Refused: the APK is not in the signed ${kind.label} index")
+            digests
         }
-        if (installed != null && archive.versionCode <= installed.versionCode) {
-            // Same version (or older): nothing to install. Remember the release, so that it does not count as an update again.
-            val label = packages.label(pkg)
-            record(appId, pkg, release.tag, installed.versionCode, pin ?: Packages.pin(archive.current), label)
-            if (!background) messages.tryEmit("${label ?: app.name} is up to date")
-            return false
+        val newPin = when (decision) {
+            is Gate.Decision.Refuse -> throw IOException(decision.reason)
+            is Gate.Decision.UpToDate -> {
+                // Remember the release, so that it does not count as an update again.
+                val label = packages.label(pkg)
+                record(appId, pkg, release.tag, installed?.versionCode, decision.pin, label)
+                if (!background) messages.tryEmit("${label ?: app.name} is up to date")
+                return false
+            }
+            // The pin follows a key rotation: from now on the new certificate is the one to match.
+            is Gate.Decision.Install -> decision.pin
         }
-        // The pin follows a key rotation: from now on the new certificate is the one to match.
-        val newPin = Packages.pin(archive.current)
         // Only the installer of record or the update owner may wait until the app is not in use. Other apps need
         // the user anyway: their prompt goes out as a notification at once.
         val own = context.packageName
@@ -249,15 +247,6 @@ class Installer(
             a to rank
         }.sortedBy { it.second }.map { it.first }.ifEmpty { assets }
     }
-
-    private class Archive(
-        val packageName: String,
-        val versionCode: Long,
-        val versionName: String,
-        val current: Set<String>,
-        val lineage: Set<String>,
-        val sha256: String,
-    )
 
     private fun read(file: File, sha256: String): Archive? {
         val pi = context.packageManager.getPackageArchiveInfo(
