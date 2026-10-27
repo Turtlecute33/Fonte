@@ -63,6 +63,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -151,6 +154,12 @@ fun HomeScreen(nav: Navigator) {
                             updates.isNotEmpty() -> if (updates.size == 1) "1 update" else "${updates.size} updates"
                             installed.isNotEmpty() -> "Up to date"
                             else -> if (rows.size == 1) "1 app" else "${rows.size} apps"
+                        },
+                        // Pull to refresh is only a gesture: TalkBack and Switch Access get the same check as an action.
+                        modifier = Modifier.semantics {
+                            if (!checking) customActions = listOf(
+                                CustomAccessibilityAction("Check for updates") { scope.launch { app.library.checkAll() }; true },
+                            )
                         },
                     )
                 },
