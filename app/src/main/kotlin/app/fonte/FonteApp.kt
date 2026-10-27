@@ -165,8 +165,9 @@ class FonteApp : Application() {
     suspend fun runBackground(network: Network?) {
         store.awaitLoaded()
         library.checkAll()
-        // The checks go on without a refused token, so only this notice tells the user.
-        notifier.tokenRefused(token.refused.value)
+        // The checks go on without a refused token, so only this notice tells the user. One notice for each token:
+        // a notice that the user removed does not come back.
+        if (withContext(Dispatchers.IO) { token.takeNotice() }) notifier.tokenRefused(true)
         val settings = store.settings
         val updates = withContext(Dispatchers.IO) {
             store.apps.filter { app ->
