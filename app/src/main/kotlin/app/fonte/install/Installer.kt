@@ -150,8 +150,9 @@ class Installer(
         }
         if (installed != null && archive.versionCode <= installed.versionCode) {
             // Same version (or older): nothing to install. Remember the release, so that it does not count as an update again.
-            record(appId, pkg, release.tag, installed.versionCode, pin ?: Packages.pin(archive.current), installed.label)
-            if (!background) messages.tryEmit("${installed.label} is up to date")
+            val label = packages.label(pkg)
+            record(appId, pkg, release.tag, installed.versionCode, pin ?: Packages.pin(archive.current), label)
+            if (!background) messages.tryEmit("${label ?: app.name} is up to date")
             return false
         }
         // The pin follows a key rotation: from now on the new certificate is the one to match.
@@ -335,13 +336,14 @@ class Installer(
                 notifier.cancelConfirm(sessionId)
                 val pkg = intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME)
                 val info = pkg?.let { withContext(Dispatchers.IO) { packages.refresh(it) } }
+                val label = pkg?.let { withContext(Dispatchers.IO) { packages.label(it) } }
                 record(
                     appId,
                     pkg,
                     intent.getStringExtra(EXTRA_TAG),
                     intent.getLongExtra(EXTRA_CODE, 0).takeIf { it > 0 } ?: info?.versionCode,
                     intent.getStringExtra(EXTRA_CERT),
-                    info?.label,
+                    label,
                 )
                 clear(appId)
                 if (background) notifier.installed(name, info?.versionName)

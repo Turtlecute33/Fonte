@@ -140,7 +140,7 @@ class Library(private val store: Store, private val packages: Packages, private 
         return TrackedApp(
             id = source.id,
             source = source,
-            name = installed?.label ?: name ?: defaultName(source),
+            name = installed?.let { packages.label(it.pkg) } ?: name ?: defaultName(source),
             packageName = packageName,
             prerelease = prerelease,
             apkFilter = filter.trim(),

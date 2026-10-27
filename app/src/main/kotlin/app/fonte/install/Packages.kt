@@ -20,7 +20,6 @@ class Packages(context: Context) {
         val pkg: String,
         val versionName: String,
         val versionCode: Long,
-        val label: String,
         /** [pin] of the current signing certificates. */
         val cert: String,
         val installer: String?,
@@ -37,7 +36,6 @@ class Packages(context: Context) {
             pkg = pkg,
             versionName = pi.versionName.orEmpty(),
             versionCode = pi.longVersionCode,
-            label = pi.applicationInfo?.loadLabel(pm)?.toString() ?: pkg,
             cert = pin(current(pi.signingInfo)),
             installer = source?.installingPackageName,
             updateOwner = source?.updateOwnerPackageName,
@@ -46,9 +44,19 @@ class Packages(context: Context) {
         null
     }
 
+    /** Time of the last [refresh] of all tracked packages. */
+    @Volatile private var refreshedAt = 0L
+
     /** Reads [pkgs] again. Off the main thread. */
     fun refresh(pkgs: Collection<String>) {
+        val now = System.currentTimeMillis()
         _installed.value = pkgs.mapNotNull(::info).associateBy { it.pkg }
+        refreshedAt = now
+    }
+
+    /** [refresh], but not when the last one is less than [FRESH_MS] old (an activity start right after the app start). */
+    fun refreshIfOld(pkgs: Collection<String>) {
+        if (System.currentTimeMillis() - refreshedAt >= FRESH_MS) refresh(pkgs)
     }
 
     /** Reads one package again (after an install or a package broadcast). Off the main thread. */
@@ -72,6 +80,8 @@ class Packages(context: Context) {
     fun launchIntent(pkg: String) = pm.getLaunchIntentForPackage(pkg)
 
     companion object {
+        private const val FRESH_MS = 5_000L
+
         /** SHA-256 of each certificate the APK is signed with now. */
         fun current(si: SigningInfo?): Set<String> = si?.apkContentsSigners?.map { sha256(it.toByteArray()) }?.toSet().orEmpty()
 

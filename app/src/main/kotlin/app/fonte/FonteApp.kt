@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -83,17 +84,17 @@ class FonteApp : Application() {
         scope.launch(Dispatchers.IO) {
             store.load()
             library.addSelf()
-            packages.refresh(trackedPackages())
+            val tracked = trackedPackages().toSet()
+            packages.refresh(tracked)
             _ready.value = true
+            // A new or removed app: read the installed packages again. The set that was just read does not count.
+            launch {
+                store.state.map { d -> d.apps.mapNotNull { it.packageName }.toSet() }.distinctUntilChanged().dropWhile { it == tracked }
+                    .collect { packages.refresh(it) }
+            }
             notifier.setUp()
             installer.cleanUp()
             UpdateJob.schedule(this@FonteApp, store.settings, replace = false)
-        }
-        // A new or removed app: read the installed packages again.
-        scope.launch {
-            store.state.map { d -> d.apps.mapNotNull { it.packageName }.toSet() }.distinctUntilChanged().drop(1).collect {
-                withContext(Dispatchers.IO) { packages.refresh(it) }
-            }
         }
         scope.launch {
             store.state.map { it.settings }.distinctUntilChanged().drop(1).collect { UpdateJob.schedule(this@FonteApp, it, replace = true) }
@@ -131,8 +132,9 @@ class FonteApp : Application() {
     fun onForeground() {
         installer.visible = true
         scope.launch {
-            store.awaitLoaded()
-            withContext(Dispatchers.IO) { packages.refresh(trackedPackages()) }
+            // After the start: its read of the installed packages is new, so this one is skipped.
+            ready.first { it }
+            withContext(Dispatchers.IO) { packages.refreshIfOld(trackedPackages()) }
             val oldest = store.apps.minOfOrNull { it.checkedAt } ?: return@launch
             if (System.currentTimeMillis() - oldest > STALE_MS) library.checkAll()
         }
