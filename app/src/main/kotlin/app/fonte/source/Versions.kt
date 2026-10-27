@@ -15,9 +15,10 @@ object Versions {
     }
 
     /**
-     * Above zero when [a] is newer than [b]. Compares the first run of dotted numbers ("v1.10.2-beta" → 1.10.2);
-     * when those are equal, a final release is newer than a pre-release. Versions with no numbers that differ
-     * count as newer: the installer then finds the same version code and records it, so this happens once.
+     * Above zero when [a] is newer than [b]. Compares the first run of dotted numbers ("v1.10.2-beta" → 1.10.2), or a
+     * first date with hyphens ("r2024-11-01" → 2024.11.1); when those are equal, a final release is newer than a
+     * pre-release. Versions with no numbers that differ count as newer: the installer then finds the same version
+     * code and records it, so this happens once.
      */
     fun compare(a: String, b: String): Int {
         val na = numbers(a)
@@ -36,13 +37,14 @@ object Versions {
         }
     }
 
-    private val NUMBERS = Regex("""\d+(?:\.\d+)*""")
+    /** A YYYY-M-D date first: in "2024-11-01" the plain dotted run is only "2024". A suffix such as "-rc1" stays out. */
+    private val NUMBERS = Regex("""\d{4}-\d{1,2}-\d{1,2}(?!\d)|\d+(?:\.\d+)*""")
     private val PRE = Regex("""(?i)(?<![a-z])(alpha|beta|rc|pre|preview|dev|nightly|snapshot|canary)""")
 
     fun isPre(s: String) = PRE.containsMatchIn(s)
 
     private fun numbers(s: String): List<Long>? =
-        NUMBERS.find(s)?.value?.split('.')?.map { it.toLongOrNull() ?: Long.MAX_VALUE }
+        NUMBERS.find(s)?.value?.split('.', '-')?.map { it.toLongOrNull() ?: Long.MAX_VALUE }
 
     private fun normal(s: String) = s.trim().lowercase().removePrefix("v")
 

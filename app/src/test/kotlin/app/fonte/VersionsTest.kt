@@ -23,6 +23,15 @@ class VersionsTest {
         assertTrue(Versions.compare("nightly", "stable") > 0)
     }
 
+    @Test fun dateTags() {
+        assertTrue(Versions.compare("2024-11-01", "2024-10-01") > 0)
+        assertTrue(Versions.compare("r2024-11-01", "2024.10.01") > 0)
+        assertEquals(0, Versions.compare("2024-11-01", "2024.11.01"))
+        assertTrue(Versions.compare("2024-11-01", "2024-11-01-rc1") > 0)
+        // No separators: one number, as before.
+        assertTrue(Versions.compare("20241101", "20241001") > 0)
+    }
+
     @Test fun fromTag() {
         assertEquals("1.2.3", Versions.fromTag("v1.2.3"))
         assertEquals("release-1", Versions.fromTag("release-1"))
