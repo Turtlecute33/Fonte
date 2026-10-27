@@ -70,23 +70,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.fonte.FonteApp
 import app.fonte.Library
 import app.fonte.Row
 import app.fonte.app
 import app.fonte.ui.AppIcon
 import app.fonte.ui.GroupItem
+import app.fonte.ui.IMPORT_TYPES
 import app.fonte.ui.Icons
 import app.fonte.ui.ItemRow
 import app.fonte.ui.SectionTitle
 import app.fonte.ui.TaskIndicator
+import app.fonte.ui.importFile
 import app.fonte.ui.nav.Navigator
 import app.fonte.ui.nav.Route
 import app.fonte.ui.taskText
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun HomeScreen(nav: Navigator) {
@@ -238,28 +236,6 @@ fun HomeScreen(nav: Navigator) {
         )
     }
 }
-
-private val IMPORT_TYPES = arrayOf("application/json", "text/*", "application/octet-stream")
-
-private suspend fun importFile(context: Context, uri: Uri, app: FonteApp): String = try {
-    val text = withContext(Dispatchers.IO) {
-        context.contentResolver.openInputStream(uri)?.use { it.readNBytes(MAX_IMPORT).decodeToString() } ?: ""
-    }
-    val r = app.library.import(text)
-    // Reads the releases of the new entries; runs on in the app scope when the screen goes.
-    app.scope.launch { app.library.checkAll() }
-    buildString {
-        append(if (r.added == 1) "Imported 1 app" else "Imported ${r.added} apps")
-        if (r.known > 0) append(" · ${r.known} in the list already")
-        if (r.skipped.isNotEmpty()) append(" · ${r.skipped.size} from sources Fonte does not read")
-    }
-} catch (e: CancellationException) {
-    throw e
-} catch (e: Exception) {
-    Library.userText(e, "Import failed")
-}
-
-private const val MAX_IMPORT = 16 shl 20
 
 private fun LazyListScope.section(
     title: String,

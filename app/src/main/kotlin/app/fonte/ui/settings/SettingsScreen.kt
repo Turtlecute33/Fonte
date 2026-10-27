@@ -37,12 +37,13 @@ import app.fonte.app
 import app.fonte.data.Settings
 import app.fonte.ui.Bar
 import app.fonte.ui.GroupItem
+import app.fonte.ui.IMPORT_TYPES
 import app.fonte.ui.ItemRow
 import app.fonte.ui.SectionTitle
 import app.fonte.ui.SwitchItem
+import app.fonte.ui.importFile
 import app.fonte.ui.nav.Navigator
 import app.fonte.ui.openLink
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,25 +79,7 @@ fun SettingsScreen(nav: Navigator) {
         }
     }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            val text = try {
-                val json = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { it.readNBytes(16 shl 20).decodeToString() } ?: ""
-                }
-                val r = app.library.import(json)
-                app.scope.launch { app.library.checkAll() }
-                buildString {
-                    append(if (r.added == 1) "Imported 1 app" else "Imported ${r.added} apps")
-                    if (r.known > 0) append(" · ${r.known} in the list already")
-                    if (r.skipped.isNotEmpty()) append(" · ${r.skipped.size} from sources Fonte does not read")
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Library.userText(e, "Import failed")
-            }
-            snackbar.showSnackbar(text)
-        }
+        if (uri != null) scope.launch { snackbar.showSnackbar(importFile(context, uri, app)) }
     }
 
     Scaffold(topBar = { Bar("Settings", onBack = nav::back) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
@@ -150,7 +133,7 @@ fun SettingsScreen(nav: Navigator) {
             }
 
             SectionTitle("Apps")
-            GroupItem(0, 2, onClick = { importer.launch(arrayOf("application/json", "text/*", "application/octet-stream")) }) {
+            GroupItem(0, 2, onClick = { importer.launch(IMPORT_TYPES) }) {
                 ItemRow("Import", "From an Obtainium or Fonte export")
             }
             GroupItem(1, 2, onClick = { exporter.launch("fonte-apps.json") }) {
