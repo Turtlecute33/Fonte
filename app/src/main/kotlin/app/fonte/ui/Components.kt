@@ -40,6 +40,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -72,10 +75,19 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, action: @Composabl
 
 /**
  * One item of a group of rows: a large radius at the outer corners of the group, a small one between items,
- * and a 2 dp gap (the Android 16 settings style).
+ * and a 2 dp gap (the Android 16 settings style). With [checked], the whole item is one switch.
  */
 @Composable
-fun GroupItem(index: Int, count: Int, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
+fun GroupItem(
+    index: Int,
+    count: Int,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    checked: Boolean? = null,
+    onCheckedChange: (Boolean) -> Unit = {},
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     val big = 24.dp
     val small = 6.dp
     val shape = RoundedCornerShape(
@@ -86,10 +98,17 @@ fun GroupItem(index: Int, count: Int, modifier: Modifier = Modifier, onClick: ((
     )
     val outer = modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = if (index == count - 1) 0.dp else 2.dp)
     val color = MaterialTheme.colorScheme.surfaceContainer
-    if (onClick != null) {
-        Surface(onClick = onClick, shape = shape, color = color, modifier = outer) { content() }
-    } else {
-        Surface(shape = shape, color = color, modifier = outer) { content() }
+    when {
+        checked != null -> Surface(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            shape = shape,
+            color = color,
+            modifier = outer.semantics { role = Role.Switch },
+        ) { content() }
+        onClick != null -> Surface(onClick = onClick, shape = shape, color = color, modifier = outer) { content() }
+        else -> Surface(shape = shape, color = color, modifier = outer) { content() }
     }
 }
 
@@ -131,10 +150,11 @@ fun ItemRow(
 
 @Composable
 fun SwitchItem(index: Int, count: Int, title: String, checked: Boolean, onChange: (Boolean) -> Unit, subtitle: String? = null, enabled: Boolean = true) {
-    GroupItem(index, count, onClick = { if (enabled) onChange(!checked) }) {
+    // One focus stop: TalkBack reads the title, the subtitle and the state of the switch together.
+    GroupItem(index, count, checked = checked, onCheckedChange = onChange, enabled = enabled) {
         ItemRow(title, subtitle) {
             Spacer(Modifier.width(12.dp))
-            Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
         }
     }
 }
