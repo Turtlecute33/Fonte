@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -93,6 +94,13 @@ class FonteApp : Application() {
         }
         scope.launch {
             store.state.map { it.settings }.distinctUntilChanged().drop(1).collect { UpdateJob.schedule(this@FonteApp, it, replace = true) }
+        }
+        // The updates notification follows the list: an update that the user installs in the app leaves it.
+        // Only changes after the start count: the first list can come before the installed versions.
+        scope.launch {
+            ready.first { it }
+            rows.map { r -> r.filter { it.update && it.task == null }.map { it.app.name } }
+                .distinctUntilChanged().drop(1).collect(notifier::refreshUpdates)
         }
         listenToPackages()
     }

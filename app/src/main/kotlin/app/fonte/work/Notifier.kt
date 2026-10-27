@@ -30,6 +30,11 @@ class Notifier(private val context: Context) {
         post(TAG_UPDATES, 0, builder(UPDATES).setContentTitle(title).setContentText(names.joinToString(", ")).setContentIntent(openApp()))
     }
 
+    /** After a change in the app: [updatesAvailable], but only while that notification shows. One that the user removed stays away. */
+    fun refreshUpdates(names: List<String>) {
+        if (nm.activeNotifications.any { it.tag == TAG_UPDATES }) updatesAvailable(names)
+    }
+
     /** The app cannot install without the user: a tap opens the system prompt for this session. */
     fun confirm(sessionId: Int, name: String, prompt: Intent) {
         val tap = PendingIntent.getActivity(
