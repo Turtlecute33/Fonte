@@ -111,7 +111,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleDebug :app:testDeb
 ```
 
 Release builds are signed with the key that `scripts/make-release-key.sh` makes; without it,
-`assembleRelease` makes an unsigned APK. The release APK is about 2.6 MB.
+`assembleRelease` makes an unsigned APK. The release APK is about 2.7 MB.
 
 <details>
 <summary><b>How Fonte finds updates</b></summary>
