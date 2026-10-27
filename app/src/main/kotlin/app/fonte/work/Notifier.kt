@@ -73,10 +73,11 @@ class Notifier(private val context: Context) {
 
     /** The progress of an install that the user started, for [DownloadJob]. */
     fun download(name: String?, task: Installer.Task?): Notification {
-        val d = task as? Installer.Task.Downloading
+        val d = task as? Installer.Task.Progress
         val percent = if (d != null && d.total > 0) (d.done * 100 / d.total).toInt().coerceIn(0, 100) else -1
         val text = when {
             task == Installer.Task.Installing -> "Installing"
+            task is Installer.Task.Checking -> "Checking the ${task.repo} index"
             percent >= 0 -> "Downloading $percent%"
             else -> "Downloading"
         }

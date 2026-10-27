@@ -198,7 +198,7 @@ private object IconCache {
 /** A wavy ring for a download (with its share), or a spinning one for the steps without a known length. */
 @Composable
 fun TaskIndicator(task: Installer.Task, size: Dp = 36.dp) {
-    val d = task as? Installer.Task.Downloading
+    val d = task as? Installer.Task.Progress
     if (d != null && d.total > 0) {
         CircularWavyProgressIndicator(progress = { (d.done.toFloat() / d.total).coerceIn(0f, 1f) }, modifier = Modifier.size(size))
     } else {
@@ -210,6 +210,9 @@ fun taskText(context: Context, task: Installer.Task): String = when (task) {
     is Installer.Task.Downloading ->
         if (task.total > 0) "Downloading ${(task.done * 100 / task.total).coerceIn(0, 100)}% of ${size(context, task.total)}"
         else "Downloading ${size(context, task.done)}"
+    is Installer.Task.Checking ->
+        if (task.total > 0) "Checking the ${task.repo} index ${(task.done * 100 / task.total).coerceIn(0, 100)}%"
+        else "Checking the ${task.repo} index"
     Installer.Task.Installing -> "Installing…"
     Installer.Task.Waiting -> "Installs when the app is not in use"
 }

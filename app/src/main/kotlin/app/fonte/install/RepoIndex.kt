@@ -26,8 +26,8 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
 
     class Index(val name: String, val sha256: String, val size: Long)
 
-    /** The SHA-256 digests of [pkg]'s APKs in the signed index of the [kind] repo. */
-    suspend fun apkDigests(kind: SourceKind, pkg: String): Set<String> = lock.withLock {
+    /** The SHA-256 digests of [pkg]'s APKs in the signed index of the [kind] repo. [progress] follows the index download. */
+    suspend fun apkDigests(kind: SourceKind, pkg: String, progress: (done: Long, total: Long) -> Unit): Set<String> = lock.withLock {
         val repo = FDroid.base(kind) + "/repo"
         dir.mkdirs()
         val r = http.get("$repo/entry.jar", maxBytes = 1 shl 20)
@@ -46,7 +46,8 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             dir.listFiles { f -> f.name.startsWith("${kind.name}-") }?.forEach { it.delete() }
             val part = File(dir, "${kind.name}.part")
             val d = try {
-                http.download(repo + index.name, part, index.size) { _, _ -> }
+                // The length from entry.jar: a compressed answer does not tell the decoded length.
+                http.download(repo + index.name, part, index.size) { done, _ -> progress(done, index.size) }
             } catch (e: Exception) {
                 part.delete()
                 throw e

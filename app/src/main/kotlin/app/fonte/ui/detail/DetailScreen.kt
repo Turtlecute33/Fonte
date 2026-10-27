@@ -259,7 +259,7 @@ private fun Actions(row: Row) {
     val installed = row.installed
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
         if (task != null) {
-            val d = task as? Installer.Task.Downloading
+            val d = task as? Installer.Task.Progress
             if (d != null && d.total > 0) {
                 LinearWavyProgressIndicator(progress = { (d.done.toFloat() / d.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
             } else {

@@ -66,7 +66,16 @@ class Installer(
     private val scope: CoroutineScope,
 ) {
     sealed interface Task {
-        data class Downloading(val done: Long, val total: Long) : Task
+        /** A download: [total] is 0 when the length is not known. */
+        sealed interface Progress : Task {
+            val done: Long
+            val total: Long
+        }
+
+        data class Downloading(override val done: Long, override val total: Long) : Progress
+
+        /** A first install from [repo] downloads the repo's signed index. */
+        data class Checking(val repo: String, override val done: Long, override val total: Long) : Progress
         data object Installing : Task
 
         /** Background install: committed, waits until the app is not in use. */
@@ -146,8 +155,10 @@ class Installer(
         }
         // Nothing pinned: a first install. F-Droid and IzzyOnDroid sign their index, so it vouches for the file.
         val kind = app.source.kind
-        if (pin == null && kind in RepoIndex.REPO_CERTS && archive.sha256 !in index.apkDigests(kind, pkg)) {
-            throw IOException("Refused: the APK is not in the signed ${kind.label} index")
+        if (pin == null && kind in RepoIndex.REPO_CERTS) {
+            val digests = index.apkDigests(kind, pkg, progress(appId, 0) { done, total -> Task.Checking(kind.label, done, total) })
+            _tasks.update { it + (appId to Task.Installing) }
+            if (archive.sha256 !in digests) throw IOException("Refused: the APK is not in the signed ${kind.label} index")
         }
         if (installed != null && archive.versionCode <= installed.versionCode) {
             // Same version (or older): nothing to install. Remember the release, so that it does not count as an update again.
@@ -183,16 +194,7 @@ class Installer(
             val headers = auth?.let { mapOf("Accept" to "application/octet-stream", Http.AUTHORIZATION to "Bearer ${it.second}") }.orEmpty()
             val d = downloads.withPermit {
                 _tasks.update { it + (appId to Task.Downloading(0, asset.size)) }
-                var shown = -1L
-                http.download(url, file, MAX_APK, headers) { done, total ->
-                    val size = if (total > 0) total else asset.size
-                    // One update per percent (or per MB without a size): the list redraws no more often than that.
-                    val step = if (size > 0) done * 100 / size else done shr 20
-                    if (step != shown) {
-                        shown = step
-                        _tasks.update { if (appId in it) it + (appId to Task.Downloading(done, size)) else it }
-                    }
-                }
+                http.download(url, file, MAX_APK, headers, progress(appId, asset.size) { done, total -> Task.Downloading(done, total) })
             }
             if (asset.sha256 != null && !asset.sha256.equals(d.sha256, ignoreCase = true)) {
                 throw IOException("Refused: the download does not match the published SHA-256")
@@ -203,6 +205,22 @@ class Installer(
             lastError = IOException("No build for this device's processor (${Build.SUPPORTED_ABIS.first()})")
         }
         throw lastError ?: IOException("No APK to install")
+    }
+
+    /**
+     * A download callback that sets [appId]'s task to [task] once per percent (or per MB without a size): the list
+     * redraws no more often than that. [size] is the length when the server does not tell it.
+     */
+    private fun progress(appId: String, size: Long, task: (done: Long, total: Long) -> Task): (Long, Long) -> Unit {
+        var shown = -1L
+        return { done, total ->
+            val s = if (total > 0) total else size
+            val step = if (s > 0) done * 100 / s else done shr 20
+            if (step != shown) {
+                shown = step
+                _tasks.update { if (appId in it) it + (appId to task(done, s)) else it }
+            }
+        }
     }
 
     /**
