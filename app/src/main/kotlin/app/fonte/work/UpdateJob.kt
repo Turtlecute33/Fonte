@@ -6,6 +6,7 @@ import android.app.job.JobScheduler
 import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
+import android.net.NetworkCapabilities
 import app.fonte.app
 import app.fonte.data.Settings
 import kotlinx.coroutines.Job
@@ -39,7 +40,10 @@ class UpdateJob : JobService() {
         fun schedule(context: Context, settings: Settings, replace: Boolean) {
             val js = context.getSystemService(JobScheduler::class.java)
             if (!settings.background) return js.cancel(ID)
-            if (!replace && js.getPendingJob(ID) != null) return
+            val pending = js.getPendingJob(ID)
+            // A job from Fonte 0.1.4 or older can wait for an unmetered network: replace it, so that checks use any network.
+            val unmetered = pending?.requiredNetwork?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+            if (!replace && pending != null && !unmetered) return
             val period = settings.intervalHours * HOUR
             val info = JobInfo.Builder(ID, ComponentName(context, UpdateJob::class.java))
                 .setPeriodic(period, period / 4)
