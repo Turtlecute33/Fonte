@@ -137,8 +137,12 @@ class FonteApp : Application() {
             // After the start: its read of the installed packages is new, so this one is skipped.
             ready.first { it }
             withContext(Dispatchers.IO) { packages.refreshIfOld(trackedPackages()) }
-            val oldest = store.apps.minOfOrNull { it.checkedAt } ?: return@launch
-            if (System.currentTimeMillis() - oldest > STALE_MS) library.checkAll()
+            val now = System.currentTimeMillis()
+            val hasToken = token.isSet.value
+            val skip = { a: TrackedApp -> Library.skipOnForeground(a, hasToken, now) }
+            // Only the apps that this check reads count for the age: a skipped app does not start a check of the others.
+            val oldest = store.apps.filterNot(skip).minOfOrNull { it.checkedAt } ?: return@launch
+            if (now - oldest > STALE_MS) library.checkAll(skip)
         }
     }
 

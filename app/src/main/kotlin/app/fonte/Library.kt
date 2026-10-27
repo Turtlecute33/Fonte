@@ -31,14 +31,17 @@ class Library(private val store: Store, private val packages: Packages, private 
     val checking: StateFlow<Boolean> = _checking.asStateFlow()
     private val checkLock = Mutex()
 
-    /** Checks every app, [PARALLEL] at a time (one connection per host carries them). Returns at once if a check runs. */
-    suspend fun checkAll() {
+    /**
+     * Checks every app that [skip] does not leave out, [PARALLEL] at a time (one connection per host carries them).
+     * Returns at once if a check runs.
+     */
+    suspend fun checkAll(skip: (TrackedApp) -> Boolean = { false }) {
         if (!checkLock.tryLock()) return
         _checking.value = true
         try {
             withContext(Dispatchers.IO) {
                 val limit = Semaphore(PARALLEL)
-                coroutineScope { store.apps.map { app -> async { limit.withPermit { check(app.id) } } }.awaitAll() }
+                coroutineScope { store.apps.filterNot(skip).map { app -> async { limit.withPermit { check(app.id) } } }.awaitAll() }
             }
         } finally {
             _checking.value = false
@@ -167,6 +170,15 @@ class Library(private val store: Store, private val packages: Packages, private 
         private const val TAG = "FonteLibrary"
         private const val PARALLEL = 8
         const val NO_APK = "No APK for this device in the recent releases"
+        private const val GITHUB_FRESH_MS = 3600_000L
+
+        /**
+         * With no token, the automatic check when Fonte comes to the front leaves out GitHub apps checked in the last
+         * hour: then each GitHub request, also a 304, uses 1 of 60 requests an hour. Pull-to-refresh and the
+         * background job check all apps.
+         */
+        fun skipOnForeground(app: TrackedApp, hasToken: Boolean, now: Long): Boolean =
+            !hasToken && app.source.kind == SourceKind.GitHub && now - app.checkedAt < GITHUB_FRESH_MS
 
         /** Where Fonte publishes its releases, and the package of the release build. */
         val SELF = Source(SourceKind.GitHub, "github.com", "Turtlecute33/Fonte")
