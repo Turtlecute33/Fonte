@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- HTTPS only, and only the system CAs: a CA that the user or a device admin adds cannot read the traffic. -->
+<!-- HTTPS only, and only the system CAs: a CA that the user or a device admin adds cannot read the traffic.
+     CT needs the opt-in on Android 16; at target 37, Android 17 checks it by default. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
+        <certificateTransparency enabled="true" />
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
