@@ -8,8 +8,9 @@ import android.content.Context
 import android.content.Intent
 import app.fonte.MainActivity
 import app.fonte.R
+import app.fonte.install.Installer
 
-/** Three quiet channels: available updates, install prompts, installed updates. Nothing is shown on the lock screen. */
+/** Four quiet channels: available updates, install prompts, installed updates, downloads. Nothing is shown on the lock screen. */
 class Notifier(private val context: Context) {
     private val nm = context.getSystemService(NotificationManager::class.java)
 
@@ -20,6 +21,7 @@ class Notifier(private val context: Context) {
                 NotificationChannel(UPDATES, "Available updates", NotificationManager.IMPORTANCE_LOW),
                 NotificationChannel(PROMPTS, "Install requests", NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(INSTALLED, "Installed updates", NotificationManager.IMPORTANCE_MIN),
+                NotificationChannel(DOWNLOADS, "Downloads", NotificationManager.IMPORTANCE_LOW),
             ).onEach { it.lockscreenVisibility = Notification.VISIBILITY_PRIVATE },
         )
     }
@@ -53,6 +55,21 @@ class Notifier(private val context: Context) {
         post(TAG_INSTALLED, name.hashCode(), builder(INSTALLED).setContentTitle("Updated").setContentText(text).setContentIntent(openApp()).setAutoCancel(true))
     }
 
+    /** The progress of an install that the user started, for [DownloadJob]. */
+    fun download(name: String?, task: Installer.Task?): Notification {
+        val d = task as? Installer.Task.Downloading
+        val percent = if (d != null && d.total > 0) (d.done * 100 / d.total).toInt().coerceIn(0, 100) else -1
+        val text = when {
+            task == Installer.Task.Installing -> "Installing"
+            percent >= 0 -> "Downloading $percent%"
+            else -> "Downloading"
+        }
+        return builder(DOWNLOADS).setContentTitle(name ?: "Download").setContentText(text)
+            .setProgress(100, percent.coerceAtLeast(0), percent < 0)
+            .setCategory(Notification.CATEGORY_PROGRESS).setOngoing(true).setOnlyAlertOnce(true).setContentIntent(openApp())
+            .build()
+    }
+
     private fun builder(channel: String) = Notification.Builder(context, channel).setSmallIcon(R.drawable.ic_notification)
 
     private fun openApp() = PendingIntent.getActivity(
@@ -70,6 +87,7 @@ class Notifier(private val context: Context) {
         const val UPDATES = "updates"
         const val PROMPTS = "prompts"
         const val INSTALLED = "installed"
+        const val DOWNLOADS = "downloads"
         const val TAG_UPDATES = "updates"
         const val TAG_PROMPT = "prompt"
         const val TAG_INSTALLED = "installed"

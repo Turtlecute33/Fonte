@@ -13,6 +13,7 @@ import app.fonte.data.Asset
 import app.fonte.data.Release
 import app.fonte.data.Store
 import app.fonte.net.Http
+import app.fonte.work.DownloadJob
 import app.fonte.work.Notifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -91,9 +92,14 @@ class Installer(
     private val dir get() = File(context.cacheDir, "apk").apply { mkdirs() }
     private val index = RepoIndex(http, File(context.cacheDir, "index"))
 
-    /** Installs from the UI; a second tap while a task runs does nothing. */
+    /**
+     * Installs from the UI, in a [DownloadJob] when possible: then the download goes on when the user leaves Fonte.
+     * A second tap while a task runs does nothing.
+     */
     fun start(appId: String) {
-        if (appId !in _tasks.value) scope.launch { install(appId, background = false) }
+        if (appId in _tasks.value) return
+        val size = store.app(appId)?.latest?.assets?.firstOrNull()?.size ?: 0
+        if (!DownloadJob.schedule(context, appId, size)) scope.launch { install(appId, background = false) }
     }
 
     /**
