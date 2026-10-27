@@ -42,18 +42,30 @@ class Store(dir: File, private val scope: CoroutineScope) {
     /** Reads the file. Call once, off the main thread. */
     fun load() {
         try {
-            _state.value = runCatching { decode(JSONObject(file.readFully().decodeToString())) }.getOrElse { e ->
+            _state.value = runCatching {
+                val o = JSONObject(file.readFully().decodeToString())
+                decode(o).also { d ->
+                    // Some entries are unreadable: the next write drops them, so keep a copy of the whole file first.
+                    if (d.apps.size < (o.optJSONArray("apps")?.length() ?: 0)) {
+                        val copied = runCatching { file.baseFile.copyTo(kept()) }.isSuccess
+                        Log.w(TAG, "apps.json has unreadable entries, copy kept: $copied")
+                    }
+                }
+            }.getOrElse { e ->
                 // No file yet: the first start.
                 if (e is FileNotFoundException && !file.baseFile.exists()) return
                 // Keep a damaged or unreadable file aside, never overwrite it: the user can still send it for repair.
-                Log.w(TAG, "apps.json unreadable (${e.javaClass.simpleName}), kept as $UNREADABLE")
-                file.baseFile.renameTo(File(file.baseFile.parentFile, UNREADABLE))
+                Log.w(TAG, "apps.json unreadable (${e.javaClass.simpleName}), kept aside")
+                file.baseFile.renameTo(kept())
                 Data()
             }
         } finally {
             loaded.complete(Unit)
         }
     }
+
+    /** A new name for each kept file, so that a later failure does not replace an earlier copy. */
+    private fun kept() = File(file.baseFile.parentFile, "$UNREADABLE-${System.currentTimeMillis()}")
 
     /** Applies [change] now and writes the new state in the background. Changes close together go into one write. */
     fun update(change: (Data) -> Data) {
@@ -97,7 +109,9 @@ class Store(dir: File, private val scope: CoroutineScope) {
             .put("settings", d.settings.json())
 
         fun decode(o: JSONObject): Data {
-            val apps = o.list("apps") { app() }
+            // Each entry on its own: one unreadable entry (for example an unknown source kind) drops only itself.
+            val a = o.optJSONArray("apps") ?: JSONArray()
+            val apps = (0 until a.length()).mapNotNull { runCatching { a.getJSONObject(it).app() }.getOrNull() }
             return Data(
                 // Version 1 kept no API URL for GitHub assets: without the ETag, the next check reads the releases again.
                 apps = if (o.optInt("version", 1) < 2) apps.map { if (it.source.kind == SourceKind.GitHub) it.copy(etag = null) else it } else apps,

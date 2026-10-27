@@ -89,6 +89,12 @@ class TransferTest {
         assertEquals(d, Store.decode(JSONObject(Store.encode(d).toString())))
     }
 
+    @Test fun storeSkipsOnlyUnreadableEntries() {
+        val o = JSONObject(Store.encode(Data(listOf(tracked))).toString())
+        o.getJSONArray("apps").put(JSONObject("""{"kind":"Unknown","host":"h","path":"p","name":"N"}""")).put(JSONObject("""{"kind":"GitHub"}"""))
+        assertEquals(listOf(tracked), Store.decode(o).apps)
+    }
+
     @Test fun unmeteredOnlyIsTheDefault() {
         assertTrue(Settings().unmeteredOnly)
         assertTrue(Store.decode(JSONObject("""{"version":2,"apps":[]}""")).settings.unmeteredOnly)
