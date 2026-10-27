@@ -72,9 +72,11 @@ And also:
 ## Privacy
 
 - No analytics, no crash reporting, no Google Play Services, no third-party SDKs, no account.
-- Fonte connects only to the sources in your list, and its own GitHub repository is always in
-  it. When you add a link to an unknown host, Fonte asks that host if it runs GitLab, Forgejo or
-  Gitea. An import contacts no host.
+- Fonte connects to the sources in your list, and its own GitHub repository is always in it. A
+  GitLab, Forgejo or Gitea release can link its APK on a different host that the project selects.
+  Fonte downloads the APK from that host, also in the background. The pinned certificate still
+  protects the update. When you add a link to an unknown host, Fonte asks that host if it runs
+  GitLab, Forgejo or Gitea. An import contacts no host.
 - No cookies, no HTTP cache, and a User-Agent with no device data.
 - The clipboard is read only when you tap Paste.
 - No backups: the app list and settings stay out of cloud backup and device transfer.

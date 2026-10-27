@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * GitLab releases API (gitlab.com and self-hosted). APKs are release links, or uploads that the release text
  * links to ("/uploads/<hash>/<file>.apk"); an upload URL needs the numeric project ID, read once per run.
+ * A release link can be on any https host that the project selects: the download goes to that host (README Privacy).
  */
 object GitLab : SourceApi {
     // No "(" inside the link: a failed match stops at the next one, so a hostile release text stays fast.

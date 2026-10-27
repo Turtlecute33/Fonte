@@ -4,7 +4,10 @@ import app.fonte.data.Asset
 import app.fonte.data.TrackedApp
 import org.json.JSONArray
 
-/** Forgejo and Gitea releases API (Codeberg and self-hosted). */
+/**
+ * Forgejo and Gitea releases API (Codeberg and self-hosted). The server sends the download URL of each asset; it can
+ * be on another https host, and the download goes to that host (README Privacy).
+ */
 object Forgejo : SourceApi {
     override suspend fun check(app: TrackedApp, ctx: Ctx): Check {
         val s = app.source
