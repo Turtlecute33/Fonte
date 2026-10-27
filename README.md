@@ -64,8 +64,8 @@ And also:
   trusted.
 - **The GitHub token** is optional; private repositories need one. Fonte shows the steps to make a
   fine-grained token with read-only access and nothing more. It is encrypted with an Android
-  Keystore key (StrongBox when available) and sent only to api.github.com. A redirect to another
-  host drops it.
+  Keystore key (StrongBox when available) and sent only to api.github.com, with each GitHub check:
+  GitHub links these checks to your account. A redirect to another host drops it.
 - **Release notes are plain text**. Fonte shows no HTML, and opens only https web pages.
 - **Memory tagging** (MTE) in sync mode on phones that have it, such as Pixel 8 and later.
 
@@ -78,7 +78,9 @@ And also:
   protects the update. When you add a link to an unknown host, Fonte asks that host if it runs
   GitLab, Forgejo or Gitea. An import makes no probe, but Fonte checks each imported source at
   once and then at each interval. A list can name self-hosted GitLab and Forgejo hosts.
-- No cookies, no HTTP cache, and a User-Agent with no device data.
+- No cookies, no HTTP cache, and a User-Agent with no device data. Fonte sends back the ETag of
+  the last answer of each source, so that a source with no change answers "not modified". A source
+  can use the ETag to see that two checks come from the same phone.
 - The clipboard is read only when you tap Paste.
 - No backups: the app list and settings stay out of cloud backup and device transfer.
 - Fonte reads the installed version of each app in your list (Android permission "query all

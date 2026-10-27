@@ -86,6 +86,7 @@ object Sources {
         throw failure ?: IOException("${parsed.host} runs no GitLab, Forgejo or Gitea that Fonte can read")
     }
 
+    /** The stored ETag, sent back as If-None-Match. A source can give each phone its own ETag and so link its checks. */
     fun etagFor(app: TrackedApp): String? = app.etag?.takeIf { app.latest != null }
 
     fun date(iso: String?): Long? = if (iso.isNullOrEmpty()) null else runCatching { OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()

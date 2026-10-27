@@ -10,7 +10,8 @@ import java.io.FileNotFoundException
 
 /**
  * The optional GitHub token (raises the API limit from 60 to 5,000 requests an hour). Encrypted by the [Vault] key,
- * kept in memory after the first read, and sent only to api.github.com.
+ * kept in memory after the first read, and sent only to api.github.com. It goes with each GitHub check, so GitHub
+ * links the checks to the account.
  */
 class Token(dir: File, private val vault: Vault) {
     private val file = AtomicFile(File(dir, "github-token.bin"))

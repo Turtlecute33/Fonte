@@ -107,7 +107,12 @@ fun TokenSheet(isSet: Boolean, onDismiss: () -> Unit, onSave: (String?) -> Unit)
                 onValueChange = { value = it.trim() },
                 label = { Text(if (isSet) "New token" else "Token") },
                 placeholder = { Text("github_pat_…") },
-                supportingText = { Text("Encrypted with a key in the phone's secure hardware. Sent only to api.github.com.") },
+                supportingText = {
+                    Text(
+                        "Encrypted with a key in the phone's secure hardware. Sent only to api.github.com, with each " +
+                            "check: GitHub links the checks to your account.",
+                    )
+                },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),

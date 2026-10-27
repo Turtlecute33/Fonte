@@ -11,8 +11,10 @@ import java.util.Date
 
 /**
  * GitHub releases API. Each request sends the stored ETag; an unchanged list answers 304 with no body. With a token,
- * a 304 does not count against the rate limit. GitHub refuses an expired or revoked token (401) also for public
- * repositories: then the request goes again without it, and later requests send no token until the user replaces it.
+ * a 304 does not count against the rate limit. The token goes with each check, also of public repositories, so
+ * GitHub links all checks to the account (the token sheet tells the user). GitHub refuses an expired or revoked
+ * token (401) also for public repositories: then the request goes again without it, and later requests send no token
+ * until the user replaces it.
  * GitHub publishes a SHA-256 digest for each asset; the download is checked against it.
  * A repository can publish more pre-releases than [Sources.PAGE] between two stable releases (Brave: nightly and beta
  * builds). When the page holds only pre-releases and the app takes none, the release that GitHub marks as latest
