@@ -35,8 +35,9 @@ fi
 
 export VA_STORE_PASS="$(openssl rand -base64 32)"
 export VA_KEY_PASS="$VA_STORE_PASS"   # PKCS12 keystores use one password for store and key.
-security add-generic-password -s "$STORE_ITEM" -a "$USER" -w "$VA_STORE_PASS"
-security add-generic-password -s "$KEY_ITEM" -a "$USER" -w "$VA_KEY_PASS"
+# The passwords go to `security` on stdin, not in its arguments, so `ps` cannot show them.
+print -r -- "add-generic-password -s \"$STORE_ITEM\" -a \"$USER\" -w \"$VA_STORE_PASS\"" | security -i
+print -r -- "add-generic-password -s \"$KEY_ITEM\" -a \"$USER\" -w \"$VA_KEY_PASS\"" | security -i
 
 keytool -genkeypair -v -storetype PKCS12 -keystore "$KEYSTORE" -alias "$ALIAS" \
   -keyalg EC -groupname secp256r1 -validity 10000 -dname "CN=Fonte" \
