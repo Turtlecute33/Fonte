@@ -111,7 +111,7 @@ fun DetailScreen(id: String, nav: Navigator) {
                 val installed = row.installed
                 val items = buildList {
                     add("Installed" to (installed?.let { "${it.versionName} (${it.versionCode})" } ?: "Not installed"))
-                    add("Latest" to (latest?.let { r -> r.version + (r.date?.let { " · " + ago(it) } ?: "") } ?: "Not found"))
+                    add("Latest" to (latest?.let { r -> r.version + (r.date?.let { " · " + ago(it) } ?: "") } ?: if (t.checkedAt == 0L) "Not checked yet" else "Not found"))
                     add("Source" to "${t.source.label} · ${t.source.path}")
                     if (t.checkedAt > 0) add("Checked" to ago(t.checkedAt))
                 }
