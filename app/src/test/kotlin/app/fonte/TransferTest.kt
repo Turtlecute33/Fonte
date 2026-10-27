@@ -89,6 +89,14 @@ class TransferTest {
         assertEquals(d, Store.decode(JSONObject(Store.encode(d).toString())))
     }
 
+    @Test fun unmeteredOnlyIsTheDefault() {
+        assertTrue(Settings().unmeteredOnly)
+        assertTrue(Store.decode(JSONObject("""{"version":2,"apps":[]}""")).settings.unmeteredOnly)
+        // A stored choice from the time of the old default stays.
+        val old = JSONObject("""{"version":2,"apps":[],"settings":{"background":true,"intervalHours":6,"autoInstall":true,"unmeteredOnly":false}}""")
+        assertFalse(Store.decode(old).settings.unmeteredOnly)
+    }
+
     @Test fun storeVersion1ReadsGitHubReleasesAgain() {
         val fdroid = Source(SourceKind.FDroid, "f-droid.org", "a.b").let { tracked.copy(id = it.id, source = it) }
         val v1 = Store.encode(Data(listOf(tracked, fdroid))).put("version", 1)

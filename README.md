@@ -35,7 +35,7 @@ run on GrapheneOS with "Restrict dynamic code loading" (memory and storage) on.
   pre-releases if you want them.
 - **Background updates**: a check every 3, 6, 12 or 24 hours. Apps that Fonte installed update
   silently while you do not use them. Apps that another store installed ask you once, through a
-  notification.
+  notification. By default, these downloads wait for an unmetered network, such as Wi-Fi.
 - **Fast checks**: HTTP/3 and HTTP/2, all apps at the same time, and a source with no change
   answers with an empty "not modified" reply.
 - **Updates itself**: Fonte is always in its own list and updates like the other apps.

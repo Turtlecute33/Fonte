@@ -18,7 +18,7 @@ class UpdateJob : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         work = app.scope.launch {
             try {
-                app.runBackground()
+                app.runBackground(params.network)
             } finally {
                 jobFinished(params, false)
             }
@@ -43,7 +43,8 @@ class UpdateJob : JobService() {
             val period = settings.intervalHours * HOUR
             val info = JobInfo.Builder(ID, ComponentName(context, UpdateJob::class.java))
                 .setPeriodic(period, period / 4)
-                .setRequiredNetworkType(if (settings.unmeteredOnly) JobInfo.NETWORK_TYPE_UNMETERED else JobInfo.NETWORK_TYPE_ANY)
+                // Checks are small; [Settings.unmeteredOnly] holds back only the downloads.
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setRequiresBatteryNotLow(true)
                 .setPersisted(true)
                 .build()

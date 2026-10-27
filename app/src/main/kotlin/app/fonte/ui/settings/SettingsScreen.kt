@@ -128,7 +128,10 @@ fun SettingsScreen(nav: Navigator) {
                     2, count, "Install automatically", s.autoInstall, { v -> set { it.copy(autoInstall = v) } },
                     subtitle = "When the app is not in use. Apps that another store installed ask once.",
                 )
-                SwitchItem(3, count, "Only on unmetered networks", s.unmeteredOnly, { v -> set { it.copy(unmeteredOnly = v) } })
+                SwitchItem(
+                    3, count, "Download only on unmetered networks", s.unmeteredOnly, { v -> set { it.copy(unmeteredOnly = v) } },
+                    subtitle = "For automatic installs. Checks use any network.",
+                )
             }
 
             SectionTitle("GitHub")

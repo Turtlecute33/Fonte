@@ -79,7 +79,8 @@ data class Settings(
     val background: Boolean = true,
     val intervalHours: Int = 6,
     val autoInstall: Boolean = true,
-    val unmeteredOnly: Boolean = false,
+    /** Automatic installs download only on an unmetered network; checks use any network. A stored choice stays. */
+    val unmeteredOnly: Boolean = true,
 )
 
 data class Data(val apps: List<TrackedApp> = emptyList(), val settings: Settings = Settings())

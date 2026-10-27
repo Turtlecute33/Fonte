@@ -5,6 +5,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Build
 import app.fonte.data.Store
 import app.fonte.data.Token
@@ -139,8 +142,11 @@ class FonteApp : Application() {
         installer.visible = false
     }
 
-    /** The periodic job: check, install what may install itself, and notify about the rest. */
-    suspend fun runBackground() {
+    /**
+     * The periodic job: check, install what may install itself, and notify about the rest. On a metered [network]
+     * with [Settings.unmeteredOnly][app.fonte.data.Settings.unmeteredOnly], nothing downloads: a later run installs.
+     */
+    suspend fun runBackground(network: Network?) {
         store.awaitLoaded()
         library.checkAll()
         val settings = store.settings
@@ -150,11 +156,16 @@ class FonteApp : Application() {
                 Versions.hasUpdate(app, info.versionCode, info.versionName)
             }
         }.sortedBy { it.packageName == packageName } // Last: the install of Fonte itself ends this process.
+        val install = settings.autoInstall && (!settings.unmeteredOnly || withContext(Dispatchers.IO) { unmetered(network) })
         val left = updates.filter { app ->
-            !(settings.autoInstall && app.autoUpdate && installer.install(app.id, background = true))
+            !(install && app.autoUpdate && installer.install(app.id, background = true))
         }
         notifier.updatesAvailable(left.map { it.name })
     }
+
+    private fun unmetered(network: Network?): Boolean =
+        getSystemService(ConnectivityManager::class.java).getNetworkCapabilities(network)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
 
     private companion object {
         const val STALE_MS = 30 * 60_000L
