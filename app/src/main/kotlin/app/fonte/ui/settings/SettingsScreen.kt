@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fonte.BuildConfig
+import app.fonte.Library
 import app.fonte.app
 import app.fonte.data.Settings
 import app.fonte.ui.Bar
@@ -71,7 +72,7 @@ fun SettingsScreen(nav: Navigator) {
                 }
                 "Exported ${app.store.apps.size} apps"
             } catch (e: Exception) {
-                e.message ?: "Export failed"
+                Library.userText(e, "Export failed")
             }
             snackbar.showSnackbar(text)
         }
@@ -92,7 +93,7 @@ fun SettingsScreen(nav: Navigator) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                e.message ?: "Import failed"
+                Library.userText(e, "Import failed")
             }
             snackbar.showSnackbar(text)
         }

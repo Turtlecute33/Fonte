@@ -23,6 +23,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import org.json.JSONException
 import java.io.IOException
 
 /** The tracked apps: add, check, change, remove, import and export. */
@@ -70,7 +71,7 @@ class Library(private val store: Store, private val packages: Packages, private 
             throw e
         } catch (e: Exception) {
             Log.d(TAG, "Check ${app.id} failed", e)
-            store.updateApp(id) { it.copy(checkedAt = now, error = e.message ?: "Check failed") }
+            store.updateApp(id) { it.copy(checkedAt = now, error = userText(e, "Check failed")) }
         }
     }
 
@@ -171,6 +172,7 @@ class Library(private val store: Store, private val packages: Packages, private 
         private const val PARALLEL = 8
         const val NO_APK = "No APK for this device in the recent releases"
         private const val GITHUB_FRESH_MS = 3600_000L
+        private const val MAX_TEXT = 200
 
         /**
          * With no token, the automatic check when Fonte comes to the front leaves out GitHub apps checked in the last
@@ -185,6 +187,14 @@ class Library(private val store: Store, private val packages: Packages, private 
         const val SELF_PACKAGE = "app.fonte"
 
         fun isSelf(app: TrackedApp) = app.id == SELF.id
+
+        /**
+         * User text for an error: Fonte's own message (at most [MAX_TEXT] characters), one fixed text for parser errors
+         * (org.json puts the whole input in its message), or [fallback].
+         */
+        fun userText(e: Throwable, fallback: String): String =
+            if (e is JSONException) "The source sent an answer that Fonte cannot read"
+            else e.message?.takeIf { it.isNotBlank() }?.take(MAX_TEXT) ?: fallback
 
         /** Repository name, or for F-Droid packages the last part of the package name ("org.schabi.newpipe" → "Newpipe"). */
         fun defaultName(source: Source): String =

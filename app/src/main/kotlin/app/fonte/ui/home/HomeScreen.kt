@@ -247,7 +247,7 @@ private suspend fun importFile(context: Context, uri: Uri, app: FonteApp): Strin
 } catch (e: CancellationException) {
     throw e
 } catch (e: Exception) {
-    e.message ?: "Import failed"
+    Library.userText(e, "Import failed")
 }
 
 private const val MAX_IMPORT = 16 shl 20

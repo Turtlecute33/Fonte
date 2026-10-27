@@ -9,6 +9,7 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import app.fonte.Library
 import app.fonte.data.Asset
 import app.fonte.data.Release
 import app.fonte.data.Store
@@ -120,7 +121,7 @@ class Installer(
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "Install failed: ${e.javaClass.simpleName}")
-            val text = e.message ?: "Install failed"
+            val text = Library.userText(e, "Install failed")
             store.updateApp(appId) { it.copy(error = text) }
             if (!background) messages.tryEmit("${store.app(appId)?.name ?: "App"}: $text")
             false

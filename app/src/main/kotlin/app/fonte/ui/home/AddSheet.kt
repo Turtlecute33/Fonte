@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import app.fonte.Library
 import app.fonte.app
 import app.fonte.data.TrackedApp
 import app.fonte.ui.Icons
@@ -78,7 +79,7 @@ fun AddSheet(initial: String, onDismiss: () -> Unit, onAdded: (TrackedApp) -> Un
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error = e.message ?: "Could not add this app"
+                error = Library.userText(e, "Could not add this app")
             } finally {
                 busy = false
             }
