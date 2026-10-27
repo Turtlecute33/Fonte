@@ -10,8 +10,9 @@ import java.util.Date
 
 /**
  * GitHub releases API. Each request sends the stored ETag; an unchanged list answers 304 with no body. With a token,
- * a 304 does not count against the rate limit. GitHub publishes a SHA-256 digest for each asset; the download is
- * checked against it.
+ * a 304 does not count against the rate limit. GitHub refuses an expired or revoked token (401) also for public
+ * repositories: then the request goes again without it, and later requests send no token until the user replaces it.
+ * GitHub publishes a SHA-256 digest for each asset; the download is checked against it.
  */
 object GitHub : SourceApi {
     @Volatile private var blockedUntil = 0L
@@ -19,14 +20,13 @@ object GitHub : SourceApi {
     override suspend fun check(app: TrackedApp, ctx: Ctx): Check {
         val now = System.currentTimeMillis()
         if (now < blockedUntil) throw limitError(blockedUntil)
-        val token = ctx.githubToken()
-        val headers = buildMap {
-            put("Accept", "application/vnd.github+json")
-            put("X-GitHub-Api-Version", "2022-11-28")
-            token?.let { put(Http.AUTHORIZATION, "Bearer $it") }
-            Sources.etagFor(app)?.let { put("If-None-Match", it) }
+        var token = ctx.githubToken()
+        var r = releases(app, ctx, token)
+        if (r.code == 401 && token != null) {
+            ctx.tokenRefused(token)
+            token = null
+            r = releases(app, ctx, null)
         }
-        val r = ctx.http.get("https://api.github.com/repos/${app.source.path}/releases?per_page=${Sources.PAGE}", headers)
         when (r.code) {
             304 -> return Check.Same
             200 -> Unit
@@ -45,6 +45,16 @@ object GitHub : SourceApi {
             else -> Sources.fail(r, "GitHub")
         }
         return Check.Found(Sources.pick(parse(r.text), app, ctx.abis), r.header("ETag"))
+    }
+
+    private suspend fun releases(app: TrackedApp, ctx: Ctx, token: String?): Http.Response {
+        val headers = buildMap {
+            put("Accept", "application/vnd.github+json")
+            put("X-GitHub-Api-Version", "2022-11-28")
+            token?.let { put(Http.AUTHORIZATION, "Bearer $it") }
+            Sources.etagFor(app)?.let { put("If-None-Match", it) }
+        }
+        return ctx.http.get("https://api.github.com/repos/${app.source.path}/releases?per_page=${Sources.PAGE}", headers)
     }
 
     fun parse(json: String): List<Raw> {

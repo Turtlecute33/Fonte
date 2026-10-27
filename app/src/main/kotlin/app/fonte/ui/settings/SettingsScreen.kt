@@ -53,6 +53,7 @@ fun SettingsScreen(nav: Navigator) {
     val app = context.app
     val data by app.store.state.collectAsStateWithLifecycle()
     val tokenSet by app.token.isSet.collectAsStateWithLifecycle()
+    val tokenRefused by app.token.refused.collectAsStateWithLifecycle()
     val s = data.settings
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -138,7 +139,12 @@ fun SettingsScreen(nav: Navigator) {
             GroupItem(0, 1, onClick = { editingToken = true }) {
                 ItemRow(
                     "Access token",
-                    if (tokenSet) "Set · 5,000 requests an hour" else "Not set · 60 requests an hour. Tap for a guide.",
+                    when {
+                        tokenRefused -> "Refused by GitHub · tap to replace"
+                        tokenSet -> "Set · 5,000 requests an hour"
+                        else -> "Not set · 60 requests an hour. Tap for a guide."
+                    },
+                    subtitleColor = if (tokenRefused) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -165,7 +171,10 @@ fun SettingsScreen(nav: Navigator) {
             editingToken = false
             scope.launch {
                 val text = try {
-                    withContext(Dispatchers.IO) { app.token.set(value) }
+                    withContext(Dispatchers.IO) {
+                        app.token.set(value)
+                        app.notifier.tokenRefused(false)
+                    }
                     if (value.isNullOrBlank()) "Token removed" else "Token saved"
                 } catch (e: Exception) {
                     e.message ?: "Could not save the token"

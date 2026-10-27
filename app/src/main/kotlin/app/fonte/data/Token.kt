@@ -16,6 +16,10 @@ class Token(dir: File, private val vault: Vault) {
     private val file = AtomicFile(File(dir, "github-token.bin"))
     private val _isSet = MutableStateFlow(file.baseFile.exists())
     val isSet: StateFlow<Boolean> = _isSet.asStateFlow()
+    private val _refused = MutableStateFlow(false)
+
+    /** GitHub refused the token (expired or revoked). Until the next [set], [toSend] gives no token. */
+    val refused: StateFlow<Boolean> = _refused.asStateFlow()
 
     @Volatile private var cached: String? = null
     @Volatile private var read = false
@@ -38,6 +42,14 @@ class Token(dir: File, private val vault: Vault) {
         return cached
     }
 
+    /** The token for a request: null while GitHub refuses it. Call off the main thread. */
+    fun toSend(): String? = if (_refused.value) null else get()
+
+    /** GitHub refused [token]. A token that the user saved since then stays usable. */
+    fun refuse(token: String) {
+        if (token == cached) _refused.value = true
+    }
+
     /** Saves [token], or deletes it when blank. Call off the main thread. */
     fun set(token: String?) = synchronized(this) {
         val value = token?.trim().orEmpty()
@@ -57,6 +69,7 @@ class Token(dir: File, private val vault: Vault) {
         }
         read = true
         _isSet.value = cached != null
+        _refused.value = false
     }
 
     private companion object {

@@ -3,6 +3,10 @@ package app.fonte
 import app.fonte.data.Source
 import app.fonte.data.SourceKind
 import app.fonte.data.TrackedApp
+import app.fonte.net.Http
+import app.fonte.net.HttpGet
+import app.fonte.source.Check
+import app.fonte.source.Ctx
 import app.fonte.source.FDroid
 import app.fonte.source.Forgejo
 import app.fonte.source.GitHub
@@ -36,6 +40,33 @@ class SourcesTest {
         assertEquals("Fixed bug", stable.notes)
         assertEquals(1790848800000, stable.date)
         assertEquals("v2-beta", Sources.pick(GitHub.parse(json), app(SourceKind.GitHub, "o/r", prerelease = true), abis)!!.tag)
+    }
+
+    /** Answers with the scripted status codes in turn, and keeps the headers of each request. */
+    private class Scripted(private vararg val codes: Int) : HttpGet {
+        val sent = ArrayList<Map<String, String>>()
+
+        override suspend fun get(url: String, headers: Map<String, String>, maxBytes: Int): Http.Response {
+            sent += headers
+            val code = codes[sent.size - 1]
+            val body = if (code == 200) """[{"tag_name":"v1","assets":[{"name":"a.apk","browser_download_url":"https://g/1.apk"}]}]""" else ""
+            return Http.Response(code, url, emptyMap(), body.toByteArray())
+        }
+    }
+
+    @Test fun githubGoesOnWithoutARefusedToken() = runTest {
+        val http = Scripted(401, 200, 200)
+        var refused = false
+        val ctx = Ctx(lazyOf(http), { "t".takeIf { !refused } }, abis, tokenRefused = { refused = it == "t" })
+        val app = app(SourceKind.GitHub, "o/r")
+        assertEquals("v1", (GitHub.check(app, ctx) as Check.Found).release?.tag)
+        assertTrue(refused)
+        assertEquals("Bearer t", http.sent[0][Http.AUTHORIZATION])
+        assertNull(http.sent[1][Http.AUTHORIZATION])
+        // A later check makes one request, with no token.
+        GitHub.check(app, ctx)
+        assertEquals(3, http.sent.size)
+        assertNull(http.sent[2][Http.AUTHORIZATION])
     }
 
     @Test fun forgejo() {

@@ -10,7 +10,10 @@ import app.fonte.MainActivity
 import app.fonte.R
 import app.fonte.install.Installer
 
-/** Four quiet channels: available updates, install prompts, installed updates, downloads. Nothing is shown on the lock screen. */
+/**
+ * Five quiet channels: available updates, install prompts, installed updates, downloads, a refused GitHub token.
+ * Nothing is shown on the lock screen.
+ */
 class Notifier(private val context: Context) {
     private val nm = context.getSystemService(NotificationManager::class.java)
 
@@ -22,6 +25,7 @@ class Notifier(private val context: Context) {
                 NotificationChannel(PROMPTS, "Install requests", NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(INSTALLED, "Installed updates", NotificationManager.IMPORTANCE_MIN),
                 NotificationChannel(DOWNLOADS, "Downloads", NotificationManager.IMPORTANCE_LOW),
+                NotificationChannel(TOKEN, "GitHub token", NotificationManager.IMPORTANCE_LOW),
             ).onEach { it.lockscreenVisibility = Notification.VISIBILITY_PRIVATE },
         )
     }
@@ -35,6 +39,18 @@ class Notifier(private val context: Context) {
     /** After a change in the app: [updatesAvailable], but only while that notification shows. One that the user removed stays away. */
     fun refreshUpdates(names: List<String>) {
         if (nm.activeNotifications.any { it.tag == TAG_UPDATES }) updatesAvailable(names)
+    }
+
+    /** One notice while GitHub refuses the token; [refused] false removes it. */
+    fun tokenRefused(refused: Boolean) {
+        if (!refused) return nm.cancel(TAG_TOKEN, 0)
+        post(
+            TAG_TOKEN,
+            0,
+            builder(TOKEN).setContentTitle("GitHub refused the token")
+                .setContentText("Checks go on without it, at 60 requests an hour. Replace it in Settings.")
+                .setContentIntent(openApp()).setAutoCancel(true),
+        )
     }
 
     /** The app cannot install without the user: a tap opens the system prompt for this session. */
@@ -88,8 +104,10 @@ class Notifier(private val context: Context) {
         const val PROMPTS = "prompts"
         const val INSTALLED = "installed"
         const val DOWNLOADS = "downloads"
+        const val TOKEN = "token"
         const val TAG_UPDATES = "updates"
         const val TAG_PROMPT = "prompt"
         const val TAG_INSTALLED = "installed"
+        const val TAG_TOKEN = "token"
     }
 }

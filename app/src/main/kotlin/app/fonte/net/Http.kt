@@ -27,13 +27,19 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+/** The GET that the sources use. [Http] is the implementation; tests use a scripted fake. */
+interface HttpGet {
+    /** A GET that reads the whole body (at most [maxBytes]). Any status is a result; only network errors throw. */
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), maxBytes: Int = Http.MAX_BODY): Http.Response
+}
+
 /**
  * HTTPS through the platform's HttpEngine (Cronet in the Connectivity module, Android 14+): HTTP/3, HTTP/2
  * multiplexing and Brotli, with no library and no native code in the APK. One engine for the whole app, so the
  * checks of many apps on one host share one connection. No HTTP cache, no cookies, a User-Agent with no device data.
  * Only https URLs, also after redirects. An Authorization header never follows a redirect to another host.
  */
-class Http(context: Context) {
+class Http(context: Context) : HttpGet {
     private val engine: HttpEngine = HttpEngine.Builder(context)
         // Only connection data (HTTP/3 support of hosts), so that QUIC works from the first request after a restart.
         .setStoragePath(File(context.noBackupFilesDir, "http").apply { mkdirs() }.path)
@@ -52,8 +58,7 @@ class Http(context: Context) {
 
     class Download(val size: Long, val sha256: String)
 
-    /** A GET that reads the whole body (at most [maxBytes]). Any status is a result; only network errors throw. */
-    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), maxBytes: Int = MAX_BODY): Response {
+    override suspend fun get(url: String, headers: Map<String, String>, maxBytes: Int): Response {
         var attempt = 0
         while (true) {
             val body = ByteArrayOutputStream()
@@ -240,7 +245,7 @@ class Http(context: Context) {
         const val USER_AGENT = "Fonte"
         private const val TAG = "FonteHttp"
         const val AUTHORIZATION = "Authorization"
-        private const val MAX_BODY = 8 shl 20
+        const val MAX_BODY = 8 shl 20
         private const val MAX_HOPS = 8
         private const val BUFFER = 256 shl 10
         private const val TIMEOUT_MS = 30_000L

@@ -74,8 +74,8 @@ class FonteApp : Application() {
         notifier = Notifier(this)
         // Built on first use, off the main thread: the engine loads the platform's network stack.
         val http = lazy { Http(this) }
-        val ctx = Ctx(http, token::get, Build.SUPPORTED_ABIS.toList())
-        installer = Installer(this, http, token::get, store, packages, notifier, scope)
+        val ctx = Ctx(http, token::toSend, Build.SUPPORTED_ABIS.toList(), token::refuse)
+        installer = Installer(this, http, token::toSend, store, packages, notifier, scope)
         library = Library(store, packages, ctx)
         // Off the main thread: each check result and each download step builds and sorts the list again.
         rows = combine(store.state, packages.installed, installer.tasks) { data, installed, tasks ->
@@ -138,7 +138,7 @@ class FonteApp : Application() {
             ready.first { it }
             withContext(Dispatchers.IO) { packages.refreshIfOld(trackedPackages()) }
             val now = System.currentTimeMillis()
-            val hasToken = token.isSet.value
+            val hasToken = token.isSet.value && !token.refused.value
             val skip = { a: TrackedApp -> Library.skipOnForeground(a, hasToken, now) }
             // Only the apps that this check reads count for the age: a skipped app does not start a check of the others.
             val oldest = store.apps.filterNot(skip).minOfOrNull { it.checkedAt } ?: return@launch
@@ -157,6 +157,8 @@ class FonteApp : Application() {
     suspend fun runBackground(network: Network?) {
         store.awaitLoaded()
         library.checkAll()
+        // The checks go on without a refused token, so only this notice tells the user.
+        notifier.tokenRefused(token.refused.value)
         val settings = store.settings
         val updates = withContext(Dispatchers.IO) {
             store.apps.filter { app ->

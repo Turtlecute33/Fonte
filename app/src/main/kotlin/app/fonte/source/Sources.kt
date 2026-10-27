@@ -6,13 +6,17 @@ import app.fonte.data.Source
 import app.fonte.data.SourceKind
 import app.fonte.data.TrackedApp
 import app.fonte.net.Http
+import app.fonte.net.HttpGet
 import java.io.IOException
 import java.net.URLEncoder
 import java.time.OffsetDateTime
 
-/** What a source needs: the HTTP client, the GitHub token (read off the main thread), and the device's ABIs. */
-class Ctx(http: Lazy<Http>, val githubToken: () -> String?, val abis: List<String>) {
-    val http: Http by http
+/**
+ * What a source needs: the HTTP client, the GitHub token (read off the main thread), and the device's ABIs.
+ * [tokenRefused] gets the token that GitHub refused.
+ */
+class Ctx(http: Lazy<HttpGet>, val githubToken: () -> String?, val abis: List<String>, val tokenRefused: (String) -> Unit = {}) {
+    val http: HttpGet by http
 }
 
 sealed interface Check {
