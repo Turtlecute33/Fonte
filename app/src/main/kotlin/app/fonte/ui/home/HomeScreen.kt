@@ -128,9 +128,9 @@ fun HomeScreen(nav: Navigator) {
         }
     }
 
-    val updates = rows.filter { it.update }
-    val installed = rows.filter { !it.update && it.installed != null }
-    val missing = rows.filter { it.installed == null }
+    val (updates, installed, missing) = remember(rows) {
+        Triple(rows.filter { it.update }, rows.filter { !it.update && it.installed != null }, rows.filter { it.installed == null })
+    }
     // Only Fonte itself, with nothing to do: the start screen shows, with its import button.
     val empty = rows.all { Library.isSelf(it.app) && !it.update && it.task == null }
     val list = rememberLazyListState()

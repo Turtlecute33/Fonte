@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -76,10 +77,11 @@ class FonteApp : Application() {
         val ctx = Ctx(http, token::get, Build.SUPPORTED_ABIS.toList())
         installer = Installer(this, http, token::get, store, packages, notifier, scope)
         library = Library(store, packages, ctx)
+        // Off the main thread: each check result and each download step builds and sorts the list again.
         rows = combine(store.state, packages.installed, installer.tasks) { data, installed, tasks ->
             data.apps.map { Row(it, it.packageName?.let(installed::get), tasks[it.id]) }
                 .sortedWith(compareBy<Row>({ !it.update }, { it.installed == null }, { it.app.name.lowercase() }))
-        }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+        }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.Eagerly, emptyList())
 
         scope.launch(Dispatchers.IO) {
             store.load()
