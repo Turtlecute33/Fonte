@@ -341,7 +341,7 @@ class Installer(
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 val confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) ?: return
-                if (!isSystemActivity(confirm)) return
+                if (!withContext(Dispatchers.IO) { isSystemActivity(confirm) }) return
                 if (visible) {
                     _tasks.update { it + (appId to Task.Installing) }
                     _confirmations.trySend(confirm)
@@ -393,7 +393,10 @@ class Installer(
 
     private fun clear(appId: String) = _tasks.update { it - appId }
 
-    /** The install prompt must be a system activity: the intent comes from the system, but check before starting it. */
+    /**
+     * The install prompt must be a system activity: the intent comes from the system, but check before starting it.
+     * A binder call: off the main thread.
+     */
     private fun isSystemActivity(intent: Intent): Boolean {
         val info = context.packageManager.resolveActivity(intent, PackageManager.ResolveInfoFlags.of(0)) ?: return false
         return info.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0

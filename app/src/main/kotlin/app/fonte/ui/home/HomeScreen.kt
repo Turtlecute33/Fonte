@@ -84,7 +84,9 @@ import app.fonte.ui.importFile
 import app.fonte.ui.nav.Navigator
 import app.fonte.ui.nav.Route
 import app.fonte.ui.taskText
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun HomeScreen(nav: Navigator) {
@@ -225,7 +227,7 @@ fun HomeScreen(nav: Navigator) {
                 addLink = ""
                 scope.launch {
                     if (added() == 1) askNotifications()
-                    if (added.packageName?.let(app.packages::info) == null) {
+                    if (withContext(Dispatchers.IO) { added.packageName?.let(app.packages::info) } == null) {
                         val r = snackbar.showSnackbar("Added ${added.name}", actionLabel = "Install", withDismissAction = true, duration = SnackbarDuration.Long)
                         if (r == SnackbarResult.ActionPerformed) app.installer.start(added.id)
                     } else {

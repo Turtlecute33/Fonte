@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.os.StrictMode
 import app.fonte.data.Store
 import app.fonte.data.Token
 import app.fonte.data.TrackedApp
@@ -67,6 +68,7 @@ class FonteApp : Application() {
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
 
     override fun onCreate() {
+        if (BuildConfig.DEBUG) enableStrictMode()
         super.onCreate()
         store = Store(filesDir, scope)
         token = Token(filesDir, Vault())
@@ -112,6 +114,12 @@ class FonteApp : Application() {
     }
 
     private fun trackedPackages() = store.apps.mapNotNull { it.packageName }
+
+    /** Debug builds log disk and network work on the main thread, leaks and unsafe intents. */
+    private fun enableStrictMode() {
+        StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
+        StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectAll().penaltyLog().build())
+    }
 
     /** Installs and removals by anyone (the user, another store) change the list at once. */
     private fun listenToPackages() {

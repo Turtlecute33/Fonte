@@ -275,7 +275,10 @@ private fun Actions(row: Row) {
             return@Column
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val launch = remember(installed) { installed?.let { app.packages.launchIntent(it.pkg) } }
+            // A binder call: off the main thread, so the Open button comes one frame later.
+            val launch = produceState<Intent?>(null, installed) {
+                value = installed?.let { withContext(Dispatchers.IO) { app.packages.launchIntent(it.pkg) } }
+            }.value
             when {
                 row.update && latest != null -> Button(
                     onClick = { app.installer.start(t.id) },
