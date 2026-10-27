@@ -4,6 +4,8 @@ import app.fonte.data.Asset
 import app.fonte.source.Apks
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ApksTest {
     private val arm64 = listOf("arm64-v8a", "armeabi-v7a", "armeabi")
@@ -32,6 +34,24 @@ class ApksTest {
         assertEquals(listOf("app-fdroid-arm64-v8a.apk"), rank(a, "!play"))
         // A bad regex is plain text.
         assertEquals(listOf("app-[x].apk"), rank(names("app-[x].apk", "app-y.apk"), "[x"))
+    }
+
+    @Test(timeout = 2_000) fun hostileFilterStaysFast() {
+        val name = "app-" + "a".repeat(44) + "-release.apk"
+        assertEquals(60, name.length)
+        for (f in listOf("(.*.*.*.*.*)*#", "(a+)+b", "((a+))+b", "(a|a)*b", ".*.*.*.*.*.*.*.*#", "(a)\\1b")) {
+            // Plain text: no match on the long name, a match on a name with the filter in it.
+            assertEquals(emptyList(), rank(names(name), f), f)
+            assertEquals(listOf("x$f.apk"), rank(names("x$f.apk"), f), f)
+        }
+        assertTrue(Apks.slow("a".repeat(201)))
+    }
+
+    @Test fun usualFiltersStayRegexes() {
+        for (f in listOf("arm64.*", "^((?!play).)*$", "^(?!.*debug).*\\.apk$", "app-(arm64-v8a|universal)-release", ".*-v\\d+\\.\\d+-.*")) {
+            assertFalse(Apks.slow(f), f)
+        }
+        assertEquals(listOf("app-fdroid.apk"), rank(names("app-fdroid.apk", "app-play.apk"), "^((?!play).)*$"))
     }
 
     @Test fun x86DeviceDropsArm() {

@@ -54,14 +54,61 @@ object Apks {
         return score
     }
 
-    /** A regex (case-insensitive); "!" in front inverts it. A bad regex is plain text. */
+    /**
+     * A regex (case-insensitive); "!" in front inverts it. A bad regex is plain text, and so is a [slow] one: the filter
+     * can come from an import file, and nothing can stop a match that runs.
+     */
     fun filterOf(filter: String): (String) -> Boolean {
         val f = filter.trim()
         if (f.isEmpty()) return { true }
         val invert = f.startsWith("!")
         val body = f.removePrefix("!").trim()
         if (body.isEmpty()) return { true }
-        val regex = runCatching { Regex(body, RegexOption.IGNORE_CASE) }.getOrElse { Regex(Regex.escape(body), RegexOption.IGNORE_CASE) }
+        val regex = runCatching { check(!slow(body)); Regex(body, RegexOption.IGNORE_CASE) }
+            .getOrElse { Regex(Regex.escape(body), RegexOption.IGNORE_CASE) }
         return { regex.containsMatchIn(it) != invert }
+    }
+
+    private const val MAX_FILTER = 200
+    private const val MAX_REPEATS = 4
+    private const val REPEAT = "*+{"
+    private val LOOKAROUND = listOf("(?=", "(?!", "(?<=", "(?<!")
+
+    /**
+     * True for a regex that can backtrack for minutes: longer than [MAX_FILTER], a backreference, more than
+     * [MAX_REPEATS] repeats, or a repeated group with a repeat or a "|" in it ("(a+)+", "((a+))+", "(a|a)*").
+     * A check of the text, not a proof: it does not find all slow patterns.
+     */
+    internal fun slow(p: String): Boolean {
+        if (p.length > MAX_FILTER) return true
+        // For each open group: true when a repeat or a "|" is in it. Null for a lookaround, which matches no text.
+        val groups = ArrayList<Boolean?>()
+        fun mark() {
+            if (groups.lastOrNull() == false) groups[groups.lastIndex] = true
+        }
+        var repeats = 0
+        var inClass = false
+        var i = 0
+        while (i < p.length) {
+            val c = p[i]
+            val next = p.getOrElse(i + 1) { ' ' }
+            when {
+                c == '\\' -> if (next in '1'..'9' || next == 'k') return true else i++
+                inClass -> inClass = c != ']'
+                c == '[' -> inClass = true
+                c == '(' -> groups += if (LOOKAROUND.any { p.startsWith(it, i) }) null else false
+                c == ')' -> if (groups.removeLastOrNull() == true) {
+                    if (next in REPEAT) return true
+                    mark()
+                }
+                c == '|' -> mark()
+                c in REPEAT -> {
+                    if (++repeats > MAX_REPEATS) return true
+                    mark()
+                }
+            }
+            i++
+        }
+        return false
     }
 }
