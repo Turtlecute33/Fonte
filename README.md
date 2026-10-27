@@ -76,7 +76,8 @@ And also:
   GitLab, Forgejo or Gitea release can link its APK on a different host that the project selects.
   Fonte downloads the APK from that host, also in the background. The pinned certificate still
   protects the update. When you add a link to an unknown host, Fonte asks that host if it runs
-  GitLab, Forgejo or Gitea. An import contacts no host.
+  GitLab, Forgejo or Gitea. An import makes no probe, but Fonte checks each imported source at
+  once and then at each interval. A list can name self-hosted GitLab and Forgejo hosts.
 - No cookies, no HTTP cache, and a User-Agent with no device data.
 - The clipboard is read only when you tap Paste.
 - No backups: the app list and settings stay out of cloud backup and device transfer.

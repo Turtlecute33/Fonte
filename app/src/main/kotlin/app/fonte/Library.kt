@@ -89,7 +89,10 @@ class Library(private val store: Store, private val packages: Packages, private 
 
     data class Imported(val added: Int, val known: Int, val skipped: List<String>)
 
-    /** Adds the apps of an Obtainium or Fonte export. Releases are read afterwards by [checkAll]. */
+    /**
+     * Adds the apps of an Obtainium or Fonte export. The callers start [checkAll] at once: each new host gets a request
+     * then and at each interval (README Privacy). A source kind in the file makes any host a GitLab or Forgejo source.
+     */
     suspend fun import(text: String): Imported = withContext(Dispatchers.IO) {
         val entries = try {
             Transfer.parse(text)
@@ -100,7 +103,7 @@ class Library(private val store: Store, private val packages: Packages, private 
         val skipped = ArrayList<String>()
         var known = 0
         for (e in entries) {
-            // No request to hosts that the link alone does not name as a supported source.
+            // No probe: only a link whose host or import hint names a supported kind gives a source.
             val source = e.source ?: (Links.parse(e.url, e.hint) as? Links.Parsed.Known)?.source.takeIf { !e.unsupported }
             if (source == null) {
                 skipped += e.name ?: e.url
