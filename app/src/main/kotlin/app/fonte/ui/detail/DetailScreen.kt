@@ -42,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -124,12 +126,20 @@ fun DetailScreen(id: String, nav: Navigator) {
             if (notes.isNotEmpty()) {
                 item { SectionTitle("What's new") }
                 item {
-                    GroupItem(0, 1, onClick = { allNotes = !allNotes }) {
+                    // Only a cut text opens. The click label tells TalkBack what a tap does.
+                    var cut by remember(notes) { mutableStateOf(false) }
+                    val opens = cut || allNotes
+                    GroupItem(
+                        0, 1,
+                        if (opens) Modifier.semantics { onClick(if (allNotes) "Collapse" else "Expand") { allNotes = !allNotes; true } } else Modifier,
+                        onClick = if (opens) ({ allNotes = !allNotes }) else null,
+                    ) {
                         Text(
                             notes,
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = if (allNotes) Int.MAX_VALUE else 8,
                             overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { if (!allNotes) cut = it.hasVisualOverflow },
                             modifier = Modifier.padding(16.dp),
                         )
                     }
