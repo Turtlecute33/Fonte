@@ -85,10 +85,13 @@ class SourcesTest {
         assertEquals("GitHub refused the request (HTTP 429)", error(429))
     }
 
-    /** A full page of nightly pre-releases, as Brave publishes them, and a stable release at /releases/latest. */
+    /**
+     * A full page of nightly pre-releases, as Brave publishes them, and a stable release at /releases/latest. Brave does
+     * not flag all nightlies: the title tells.
+     */
     @Test fun githubReadsTheLatestStableReleaseWhenThePageHasOnlyPreReleases() = runTest {
         val apk = """"assets":[{"name":"app-arm64-v8a.apk","size":1,"browser_download_url":"https://g/a.apk"}]"""
-        val nightlies = (1..Sources.PAGE).joinToString(",", "[", "]") { """{"tag_name":"v1.$it.0","prerelease":true,$apk}""" }
+        val nightlies = (1..Sources.PAGE).joinToString(",", "[", "]") { """{"tag_name":"v1.$it.0","name":"Nightly v1.$it.0","prerelease":${it % 2 == 0},$apk}""" }
         val urls = ArrayList<String>()
         var latestCode = 200
         val http = object : HttpGet {

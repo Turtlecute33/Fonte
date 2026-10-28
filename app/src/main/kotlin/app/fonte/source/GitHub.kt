@@ -19,6 +19,8 @@ import java.util.Date
  * A repository can publish more pre-releases than [Sources.PAGE] between two stable releases (Brave: nightly and beta
  * builds). When the page holds only pre-releases and the app takes none, the release that GitHub marks as latest
  * (never a draft or a pre-release) comes from one more request.
+ * A release whose title names a pre-release channel is a pre-release also without the flag: Brave does not mark all
+ * of its "Nightly" releases.
  */
 object GitHub : SourceApi {
     @Volatile private var blockedUntil = 0L
@@ -87,7 +89,7 @@ object GitHub : SourceApi {
         val assets = o.optJSONArray("assets") ?: JSONArray()
         return Raw(
             tag = o.getString("tag_name"),
-            prerelease = o.optBoolean("prerelease"),
+            prerelease = o.optBoolean("prerelease") || Versions.isPre(o.optString("name")),
             date = Sources.date(o.optString("published_at")),
             notes = o.optString("body"),
             page = o.optString("html_url").ifEmpty { null },

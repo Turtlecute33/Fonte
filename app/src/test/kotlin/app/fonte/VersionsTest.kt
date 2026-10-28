@@ -23,6 +23,15 @@ class VersionsTest {
         assertTrue(Versions.compare("nightly", "stable") > 0)
     }
 
+    @Test fun isPre() {
+        assertTrue(Versions.isPre("Nightly v1.100.36 (Chromium 156.0.8078.48)"))
+        assertTrue(Versions.isPre("v2.0.0-rc.1"))
+        assertTrue(Versions.isPre("1.0-beta2"))
+        assertTrue(Versions.isPre("1.0-prerelease"))
+        assertFalse(Versions.isPre("Release v1.98.60 (Chromium 156.0.8078.48)"))
+        assertFalse(Versions.isPre("v3.1: Preferences for Devices"))
+    }
+
     @Test fun dateTags() {
         assertTrue(Versions.compare("2024-11-01", "2024-10-01") > 0)
         assertTrue(Versions.compare("r2024-11-01", "2024.10.01") > 0)

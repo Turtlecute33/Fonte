@@ -39,8 +39,9 @@ object Versions {
 
     /** A YYYY-M-D date first: in "2024-11-01" the plain dotted run is only "2024". A suffix such as "-rc1" stays out. */
     private val NUMBERS = Regex("""\d{4}-\d{1,2}-\d{1,2}(?!\d)|\d+(?:\.\d+)*""")
-    private val PRE = Regex("""(?i)(?<![a-z])(alpha|beta|rc|pre|preview|dev|nightly|snapshot|canary)""")
+    private val PRE = Regex("""(?i)(?<![a-z])(alpha|beta|rc|pre|prerelease|preview|dev|nightly|snapshot|canary)(?![a-z])""")
 
+    /** True when [s] names a pre-release channel as a full word ("beta2", "rc.1"); "Preferences" and "Devices" do not. */
     fun isPre(s: String) = PRE.containsMatchIn(s)
 
     private fun numbers(s: String): List<Long>? =
