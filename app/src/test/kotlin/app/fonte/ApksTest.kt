@@ -39,16 +39,24 @@ class ApksTest {
     @Test(timeout = 2_000) fun hostileFilterStaysFast() {
         val name = "app-" + "a".repeat(44) + "-release.apk"
         assertEquals(60, name.length)
-        for (f in listOf("(.*.*.*.*.*)*#", "(a+)+b", "((a+))+b", "(a|a)*b", ".*.*.*.*.*.*.*.*#", "(a)\\1b")) {
+        val hostile = listOf("(.*.*.*.*.*)*#", "(a+)+b", "((a+))+b", "(a|a)*b", ".*.*.*.*.*.*.*.*#", "(a)\\1b") +
+            listOf("a?".repeat(45) + "a".repeat(45), ".?".repeat(40) + "#", "(a|a)".repeat(30) + "b", "(?:a|b)?".repeat(20)) +
+            listOf("(?:\\c[)?" + ".?".repeat(30) + "#", "(?:\\Q[\\E)?" + ".?".repeat(30) + "#", "(?x)(a+) +?b") +
+            listOf("(a+[a[a])])+?b", "(a+[]a)])+?b")
+        for (f in hostile) {
             // Plain text: no match on the long name, a match on a name with the filter in it.
             assertEquals(emptyList(), rank(names(name), f), f)
             assertEquals(listOf("x$f.apk"), rank(names("x$f.apk"), f), f)
         }
         assertTrue(Apks.slow("a".repeat(201)))
+        assertEquals(emptyList(), rank(names("a".repeat(197) + ".apk")))
     }
 
     @Test fun usualFiltersStayRegexes() {
-        for (f in listOf("arm64.*", "^((?!play).)*$", "^(?!.*debug).*\\.apk$", "app-(arm64-v8a|universal)-release", ".*-v\\d+\\.\\d+-.*")) {
+        val usual = listOf("arm64.*", "^((?!play).)*$", "^(?!.*debug).*\\.apk$", "app-(arm64-v8a|universal)-release", ".*-v\\d+\\.\\d+-.*") +
+            listOf("(arm64-v8a|armeabi-v7a|x86_64|x86|universal|noarch)", "v?\\d+\\.\\d+(\\.\\d+)?", ".*-v?\\d+\\.\\d+-.*") +
+            listOf("(?i)^app-?(?:foss)?-?release\\.apk$", "arm64[-_]v8a")
+        for (f in usual) {
             assertFalse(Apks.slow(f), f)
         }
         assertEquals(listOf("app-fdroid.apk"), rank(names("app-fdroid.apk", "app-play.apk"), "^((?!play).)*$"))

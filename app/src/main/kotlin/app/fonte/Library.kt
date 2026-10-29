@@ -131,7 +131,7 @@ class Library(private val store: Store, private val packages: Packages, private 
 
     /**
      * A new entry. An installed package is adopted: its label, and its signing certificate as the pin. The installed
-     * certificate wins over a pin from an import file.
+     * certificate wins over a pin from an import file. A pin with no package name is not kept.
      */
     private fun newApp(
         source: Source,
@@ -152,7 +152,7 @@ class Library(private val store: Store, private val packages: Packages, private 
             prerelease = prerelease,
             apkFilter = filter.trim(),
             autoUpdate = autoUpdate,
-            cert = installed?.cert ?: cert,
+            cert = installed?.cert ?: cert?.takeIf { packageName != null },
             addedAt = System.currentTimeMillis(),
         )
     }
