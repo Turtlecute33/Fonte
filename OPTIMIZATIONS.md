@@ -20,7 +20,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | FONTE-OPT-03 | Ship only English resources (localeFilters) | minimalism | S | low | applied |
 | FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | applied |
 | FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | applied |
-| FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | approved |
+| FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | applied |
 | FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | approved |
 | FONTE-OPT-08 | Make 'Also uninstall the app' one labelled checkbox row that survives a rotation | ui-ux | S | low | approved |
 | FONTE-OPT-09 | Delete leftover APKs before the list read | stability | S | low | approved |
@@ -99,7 +99,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: UI icon constants only. Icons.kt has only commit 451559c (no 'Report:' commit). No icon in use changes. No storage, preference or key change.
 - **Verify**: A compile error shows a missed reference at once. The release build is the check.
 - **Effort**: S. **Risk**: low. **Net lines**: about -8 (estimate).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. Release APK: classes.dex 2,498,120 B (was 2,502,084 B at 8c518a6, 3,964 B less); apkanalyzer apk file-size 2,531,530 B (was 2,535,494 B). grep -a -F of each of the 8 full path strings in the new classes.dex: 0 hits (1 hit each before). Not checked: no run-time check of the UI on a device (no emulator or device was used).
+- **Status**: applied
 
 ### FONTE-OPT-07: Remove the unused lifecycle-viewmodel-compose dependency
 - **What**: lifecycle-viewmodel-compose is declared, but no file imports androidx.lifecycle.viewmodel.compose. The Navigator ViewModel comes from `by viewModels()` (activity-ktx through activity-compose). No other resolved module depends on it, and none of its classes is in the release dex.
