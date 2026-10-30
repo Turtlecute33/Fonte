@@ -19,7 +19,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | FONTE-OPT-02 | Run pull-to-refresh and option-change checks in the app scope | stability | S | low | applied |
 | FONTE-OPT-03 | Ship only English resources (localeFilters) | minimalism | S | low | applied |
 | FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | applied |
-| FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | approved |
+| FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | applied |
 | FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | approved |
 | FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | approved |
 | FONTE-OPT-08 | Make 'Also uninstall the app' one labelled checkbox row that survives a rotation | ui-ux | S | low | approved |
@@ -87,7 +87,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Effort**: S. **Risk**: low. **Net lines**: about +1 (estimate).
 - **Owner check**: Confirm that this edit to the FONTE-PERF-011 lines is acceptable. If not, add a separate `excludes += "META-INF/*.version"` line and keep lines 63-67 as they are (precedent: Ombra a99a4d4, OMBRA-PERF-002).
 - **Owner decision**: Add a separate excludes line for META-INF/*.version. Do not edit the existing excludes lines from the security review (FONTE-PERF-011).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. unzip -l and apkanalyzer files list of the release APK: no .version entry, 14 entries (was 69). apkanalyzer apk file-size: 2,535,494 B (2,545,949 B at a8ccf45; this difference also includes the FONTE-OPT-04 code). The lines from FONTE-PERF-011 do not change. Not checked: no run-time check on a device (no emulator or device was used).
+- **Status**: applied
 
 ### FONTE-OPT-06: Remove the 8 icons that nothing uses
 - **What**: Icons.Delete, Upload, Refresh, Import, Warning, Shield, Done and Apps have no reference and never had one. R8 removes their getters and fields. But the Icons static initializer still calls icon(path) for each and discards the Lazy. Thus the path strings stay in classes.dex, and 16 objects are made when Icons first loads (first frame of Home).

@@ -70,6 +70,8 @@ android {
                 "META-INF/versions/**", "META-INF/*.md", "META-INF/LICENSE*", "META-INF/NOTICE*",
                 "META-INF/**/LICENSE*", "META-INF/**/NOTICE*", "DebugProbesKt.bin", "kotlin/**",
             )
+            // The *.version files only tell each library version to a reader of the APK. No code reads them.
+            excludes += "META-INF/*.version"
         }
     }
 
