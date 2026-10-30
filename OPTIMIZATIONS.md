@@ -24,7 +24,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | applied |
 | FONTE-OPT-08 | Make 'Also uninstall the app' one labelled checkbox row that survives a rotation | ui-ux | S | low | applied |
 | FONTE-OPT-09 | Delete leftover APKs before the list read | stability | S | low | applied |
-| FONTE-OPT-10 | Treat a stack overflow from the JSON parser as an unreadable answer, not a crash | stability | S | low | approved |
+| FONTE-OPT-10 | Treat a stack overflow from the JSON parser as an unreadable answer, not a crash | stability | S | low | applied |
 
 ### FONTE-OPT-01: Wait for the list read before the settings collector reschedules the update job
 - **What**: The settings collector at FonteApp.kt:103-105 starts on Main.immediate inside onCreate, before the IO coroutine reads apps.json. Its first value is the in-memory default Settings(), and drop(1) drops it. The loaded settings then count as a change, so UpdateJob.schedule(replace = true) runs at each cold start. This occurs for each install that stores non-default settings: all upgrades from 0.1.0-0.1.4 (they stored "unmeteredOnly": false), and all users who changed the interval or auto-install. Effect 1: each cold start (app open, install-result broadcast, DownloadJob) moves the next check to now + period. Effect 2: when UpdateJob itself starts the process, JobScheduler.schedule replaces job ID 1 and stops the running job. The background check and the silent installs then do not complete, and the new job waits a full period.
@@ -147,7 +147,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: Library.kt:57, :83 and Transfer.kt:37 come from 451559c. userText (665432d, FONTE-UX-003) and Library.kt:74 do not change. No parse rule, size cap, redirect rule, host rule or stored format changes. Only an Error that crashes the app becomes the existing parser error. No dependency.
 - **Verify**: On an emulator, import a synthetic file of 200,000 '['. Expect a FATAL StackOverflowError without the fix and the snackbar with the fix. The trigger is rare (it needs a hostile self-hosted forge or file), so the impact is low.
 - **Effort**: S. **Risk**: low. **Net lines**: about +7 (estimate).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (53 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:lintDebug passed. The new SourcesTest test uses a fake HttpGet that throws StackOverflowError, because the JVM org.json has a depth limit; Sources.check then throws JSONException. Not checked: the import of 200,000 '[' in Verify, and no run-time check on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest.
+- **Status**: applied
 
 ## Areas in good shape
 

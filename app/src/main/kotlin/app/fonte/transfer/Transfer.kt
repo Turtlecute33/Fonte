@@ -33,15 +33,20 @@ object Transfer {
     /** A pin in the stored form (SHA-256 digests, comma-separated), or null. */
     fun cert(text: String?): String? = text?.trim()?.lowercase()?.takeIf(CERT::matches)
 
-    /** Throws [org.json.JSONException] when [text] is no app list. */
-    fun parse(text: String): List<Entry> = when (val root = JSONTokener(text).nextValue()) {
-        is JSONArray -> obtainium(root)
-        is JSONObject -> when {
-            root.has(FORMAT) -> fonte(root)
-            root.has("apps") -> obtainium(root.getJSONArray("apps"))
+    /** Throws [org.json.JSONException] when [text] is no app list, also when deep nesting overflows the stack. */
+    fun parse(text: String): List<Entry> = try {
+        when (val root = JSONTokener(text).nextValue()) {
+            is JSONArray -> obtainium(root)
+            is JSONObject -> when {
+                root.has(FORMAT) -> fonte(root)
+                root.has("apps") -> obtainium(root.getJSONArray("apps"))
+                else -> throw org.json.JSONException("No apps in this file")
+            }
             else -> throw org.json.JSONException("No apps in this file")
         }
-        else -> throw org.json.JSONException("No apps in this file")
+    } catch (_: StackOverflowError) {
+        // Platform org.json has no depth limit.
+        throw org.json.JSONException("Nested too deep")
     }
 
     private fun obtainium(apps: JSONArray): List<Entry> = (0 until apps.length()).mapNotNull { apps.optJSONObject(it) }.mapNotNull { o ->

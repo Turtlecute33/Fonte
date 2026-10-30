@@ -14,8 +14,10 @@ import app.fonte.source.GitLab
 import app.fonte.source.Notes
 import app.fonte.source.Sources
 import kotlinx.coroutines.test.runTest
+import org.json.JSONException
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -111,6 +113,14 @@ class SourcesTest {
         // No stable release at all: no release, and no error.
         latestCode = 404
         assertNull((GitHub.check(app(SourceKind.GitHub, "o/r"), ctx) as Check.Found).release)
+    }
+
+    /** The JVM org.json has a depth limit and the platform one does not, so the fake throws the error itself. */
+    @Test fun aStackOverflowIsAParserError() = runTest {
+        val http = object : HttpGet {
+            override suspend fun get(url: String, headers: Map<String, String>, maxBytes: Int): Http.Response = throw StackOverflowError()
+        }
+        assertIs<JSONException>(runCatching { Sources.check(app(SourceKind.Forgejo, "o/r"), Ctx(lazyOf(http), { null }, abis)) }.exceptionOrNull())
     }
 
     @Test fun forgejo() {

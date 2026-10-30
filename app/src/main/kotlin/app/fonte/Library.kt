@@ -54,7 +54,7 @@ class Library(private val store: Store, private val packages: Packages, private 
         val app = store.app(id) ?: return@withContext
         val now = System.currentTimeMillis()
         try {
-            val c = Sources.api(app.source.kind).check(app, ctx)
+            val c = Sources.check(app, ctx)
             Log.d(TAG, "Check ${app.id}: ${if (c is Check.Found) c.release?.tag ?: "no APK" else "not modified"}")
             when (c) {
                 Check.Same -> store.updateApp(id) { it.copy(checkedAt = now, error = null) }
@@ -80,7 +80,7 @@ class Library(private val store: Store, private val packages: Packages, private 
         val source = Sources.resolve(link, ctx)
         store.app(source.id)?.let { throw IOException("${it.name} is in the list already") }
         val draft = newApp(source, null, null, prerelease, filter, true, null)
-        val found = Sources.api(source.kind).check(draft, ctx) as? Check.Found
+        val found = Sources.check(draft, ctx) as? Check.Found
         val release = found?.release ?: throw IOException(NO_APK)
         val app = draft.copy(latest = release, etag = found.etag, checkedAt = System.currentTimeMillis())
         store.update { d -> if (d.apps.any { it.id == app.id }) d else d.copy(apps = d.apps + app) }

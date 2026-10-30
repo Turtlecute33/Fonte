@@ -7,6 +7,7 @@ import app.fonte.data.SourceKind
 import app.fonte.data.TrackedApp
 import app.fonte.net.Http
 import app.fonte.net.HttpGet
+import org.json.JSONException
 import java.io.IOException
 import java.net.URLEncoder
 import java.time.OffsetDateTime
@@ -50,6 +51,16 @@ object Sources {
         SourceKind.GitLab -> GitLab
         SourceKind.Forgejo -> Forgejo
         SourceKind.FDroid, SourceKind.Izzy -> FDroid
+    }
+
+    /**
+     * Checks [app] at its source. Platform org.json has no depth limit: a deeply nested answer from a self-hosted
+     * server overflows the stack. That error becomes a parser error, so that the callers show it on the entry.
+     */
+    suspend fun check(app: TrackedApp, ctx: Ctx): Check = try {
+        api(app.source.kind).check(app, ctx)
+    } catch (_: StackOverflowError) {
+        throw JSONException("Nested too deep")
     }
 
     /** The newest release in [raws] (newest first) that the app's settings allow and that has an APK for this device. */
