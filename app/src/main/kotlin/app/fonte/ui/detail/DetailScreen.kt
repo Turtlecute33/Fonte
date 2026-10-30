@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -198,7 +200,7 @@ fun DetailScreen(id: String, nav: Navigator) {
         )
     }
     if (removing) {
-        var uninstall by remember { mutableStateOf(false) }
+        var uninstall by rememberSaveable { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { removing = false },
             title = { Text("Remove ${t.name}?") },
@@ -206,8 +208,14 @@ fun DetailScreen(id: String, nav: Navigator) {
                 Column {
                     Text("Fonte stops checking this app for updates.")
                     if (row.installed != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
-                            Checkbox(checked = uninstall, onCheckedChange = { uninstall = it })
+                        // One tap target and one TalkBack stop for the label and the box.
+                        // With onCheckedChange = null the box loses its 48 dp size. The padding and the gap keep the old layout.
+                        Row(
+                            Modifier.padding(top = 12.dp).toggleable(uninstall, role = Role.Checkbox) { uninstall = it }.padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = uninstall, onCheckedChange = null)
                             Text("Also uninstall the app")
                         }
                     }

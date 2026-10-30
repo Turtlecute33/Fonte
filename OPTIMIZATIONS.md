@@ -22,7 +22,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | applied |
 | FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | applied |
 | FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | applied |
-| FONTE-OPT-08 | Make 'Also uninstall the app' one labelled checkbox row that survives a rotation | ui-ux | S | low | approved |
+| FONTE-OPT-08 | Make 'Also uninstall the app' one labelled checkbox row that survives a rotation | ui-ux | S | low | applied |
 | FONTE-OPT-09 | Delete leftover APKs before the list read | stability | S | low | approved |
 | FONTE-OPT-10 | Treat a stack overflow from the JSON parser as an unreadable answer, not a crash | stability | S | low | approved |
 
@@ -123,7 +123,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: UI only. The ACTION_DELETE intent and library.remove do not change. Lines 202-213 come from 451559c, not from a 'Report:' commit. No dependency.
 - **Verify**: A lost tick fails in the safe direction (the app stays installed), so the impact is low. To check: with TalkBack on, open Remove on an installed app, tick the row, rotate, and make sure that the tick stays and one stop reads the label.
 - **Effort**: S. **Risk**: low. **Net lines**: about +2 (estimate).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:lintDebug passed. The row also gets padding(vertical = 12.dp) inside the toggleable (as in AddSheet) and a 12 dp gap before the label, because a Checkbox with onCheckedChange = null has no 48 dp minimum size. Not checked: the TalkBack and rotation test in Verify, and no run-time check of the UI on a device (no emulator or device was used).
+- **Status**: applied
 
 ### FONTE-OPT-09: Delete leftover APKs before the list read
 - **What**: installer.cleanUp() deletes all files in cache/apk and cache/index. It runs last in the start-up IO coroutine, after load, addSelf, packages.refresh (2 binder calls per tracked app) and notifier.setUp. When the system runs a user DownloadJob again in a new process after a process death, the job waits only for awaitLoaded. It can then create the APK file (Http.kt:98) before cleanUp runs. cleanUp then unlinks the file, getPackageArchiveInfo returns null, and the user sees 'Not a valid signed APK', which looks like a security refusal.
