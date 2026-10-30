@@ -91,6 +91,8 @@ class FonteApp : Application() {
         }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.Eagerly, emptyList())
 
         scope.launch(Dispatchers.IO) {
+            // Before the load: each install waits for the load, so this cannot delete a new download.
+            installer.cleanUp()
             store.load()
             library.addSelf()
             val tracked = trackedPackages().toSet()
@@ -102,7 +104,6 @@ class FonteApp : Application() {
                     .collect { packages.refresh(it) }
             }
             notifier.setUp()
-            installer.cleanUp()
             UpdateJob.schedule(this@FonteApp, store.settings, replace = false)
         }
         // The loaded settings are not a change: a replace moves the next check and stops a running job.

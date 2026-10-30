@@ -23,7 +23,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | applied |
 | FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | applied |
 | FONTE-OPT-08 | Make 'Also uninstall the app' one labelled checkbox row that survives a rotation | ui-ux | S | low | applied |
-| FONTE-OPT-09 | Delete leftover APKs before the list read | stability | S | low | approved |
+| FONTE-OPT-09 | Delete leftover APKs before the list read | stability | S | low | applied |
 | FONTE-OPT-10 | Treat a stack overflow from the JSON parser as an unreadable answer, not a crash | stability | S | low | approved |
 
 ### FONTE-OPT-01: Wait for the list read before the settings collector reschedules the update job
@@ -135,7 +135,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: FonteApp.kt:100 comes from 451559c. cleanUp last changed in 778b9a4 (0.1.1, before the audit). The cbfcf35 (Report) lines 91-98 do not change. The same files are deleted at the same process start. No storage format, check or dependency changes.
 - **Verify**: The splash now also waits for the listing and deletion of two cache folders (usually empty). This is a zero-cost reorder. The owner can skip it if only proven wins are wanted.
 - **Effort**: S. **Risk**: low. **Net lines**: about 0 (estimate).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap of the debug classes shows Installer.cleanUp before Store.load in the start-up IO coroutine. Not checked: the process-death race (not reproduced) and no run-time check of the splash or a download on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest.
+- **Status**: applied
 
 ### FONTE-OPT-10: Treat a stack overflow from the JSON parser as an unreadable answer, not a crash
 - **What**: Platform org.json parses nested arrays and objects by recursion and has no depth limit. A body of about 100k '[' (far below MAX_BODY 8 MB and MAX_IMPORT 16 MB) overflows the stack of a Dispatchers.IO thread. StackOverflowError is an Error, so the catch (e: Exception) blocks do not catch it. In Library.check it escapes through checkAll to the app-scope launch, which has no handler, and the process crashes. Only a self-hosted GitLab or Forgejo host can send such a body. When such an entry is in the list (for example from an imported export, with checkedAt 0), each app open and each background run crashes until the user removes the entry. A crafted import file crashes the app one time.
