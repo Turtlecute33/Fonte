@@ -58,6 +58,11 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        // The UI is English only. Do not ship the library translations, so that all text is in English.
+        localeFilters += "en"
+    }
+
     packaging {
         resources {
             // Licence files also in the library folders (META-INF/androidx/...): the README names the licences.

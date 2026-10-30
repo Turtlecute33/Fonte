@@ -17,7 +17,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 |---|---|---|---|---|---|
 | FONTE-OPT-01 | Wait for the list read before the settings collector reschedules the update job | stability | S | low | applied |
 | FONTE-OPT-02 | Run pull-to-refresh and option-change checks in the app scope | stability | S | low | applied |
-| FONTE-OPT-03 | Ship only English resources (localeFilters) | minimalism | S | low | approved |
+| FONTE-OPT-03 | Ship only English resources (localeFilters) | minimalism | S | low | applied |
 | FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | approved |
 | FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | approved |
 | FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | approved |
@@ -61,7 +61,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Effort**: S. **Risk**: low. **Net lines**: about +2 (estimate).
 - **Owner check**: MegaGlass-Android commit eb730fa (Report: MEGAGLASS-PERF-006) kept the string locales on purpose, so that library text and TalkBack labels stay in the device language. This item does the opposite. Choose one rule for all apps before you approve it.
 - **Owner decision**: English-only library strings in all apps, MegaGlass included (2026-10-30). Apply it.
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then :app:assembleRelease passed as a separate command. apkanalyzer resources configs --type string on the debug and release APKs: only 'default' (before: 86 configs). app_name is 'Fonte' in the default config. unzip -lv: resources.arsc 15,756 B, Stored (before: 146,792 B). Release APK 2,545,949 B (before: 2,677,181 B, with FONTE-OPT-01 and -02 also in the new build). Not checked: no run-time check of the UI or TalkBack on a device (no emulator or device was used). The README APK size is not changed here.
+- **Status**: applied
 
 ### FONTE-OPT-04: Mark Row @Immutable so that unchanged list rows skip recomposition
 - **What**: The Compose compiler sees Row as unstable, because TrackedApp and Release have $stable = 8 (Release.assets: List<Asset>). AppItem, Header, Actions and Security thus compare `row` by identity. The rows combine makes a new Row for each app on each emission. Each emission then recomposes every visible AppItem, its onOpen lambda and its content lambdas. Emissions come once for each check result and once for each 1 % step of each download.
