@@ -36,7 +36,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,7 +77,6 @@ fun DetailScreen(id: String, nav: Navigator) {
         return
     }
     val t = row.app
-    val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { app.installer.messages.collect { snackbar.showSnackbar(it) } }
     var removing by rememberSaveable { mutableStateOf(false) }
@@ -146,13 +144,14 @@ fun DetailScreen(id: String, nav: Navigator) {
                 }
             }
 
+            // The app scope: the check after an option change runs on when the screen goes.
             item { SectionTitle("Options") }
             item {
                 Column {
-                    SwitchItem(0, 3, "Include pre-releases", t.prerelease, { v -> scope.launch { app.library.setOptions(id, v, t.apkFilter, t.autoUpdate) } })
+                    SwitchItem(0, 3, "Include pre-releases", t.prerelease, { v -> app.scope.launch { app.library.setOptions(id, v, t.apkFilter, t.autoUpdate) } })
                     SwitchItem(
                         1, 3, "Update automatically", t.autoUpdate,
-                        { v -> scope.launch { app.library.setOptions(id, t.prerelease, t.apkFilter, v) } },
+                        { v -> app.scope.launch { app.library.setOptions(id, t.prerelease, t.apkFilter, v) } },
                         subtitle = "In the background, when the app is not in use",
                     )
                     GroupItem(2, 3, onClick = { editingFilter = true }) {
@@ -177,7 +176,7 @@ fun DetailScreen(id: String, nav: Navigator) {
 
     if (editingFilter) FilterDialog(t.apkFilter, onDismiss = { editingFilter = false }) { f ->
         editingFilter = false
-        scope.launch { app.library.setOptions(id, t.prerelease, f, t.autoUpdate) }
+        app.scope.launch { app.library.setOptions(id, t.prerelease, f, t.autoUpdate) }
     }
     if (resettingPin) {
         AlertDialog(

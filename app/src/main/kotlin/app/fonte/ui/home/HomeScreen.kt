@@ -183,7 +183,8 @@ fun HomeScreen(nav: Navigator) {
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = checking,
-            onRefresh = { scope.launch { app.library.checkAll() } },
+            // The app scope: the check runs on when the screen goes or turns.
+            onRefresh = { app.scope.launch { app.library.checkAll() } },
             state = refresh,
             modifier = Modifier.fillMaxSize().padding(padding),
             indicator = {

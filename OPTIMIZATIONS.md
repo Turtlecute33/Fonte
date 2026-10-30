@@ -16,7 +16,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | ID | Finding | Area | Effort | Risk | Status |
 |---|---|---|---|---|---|
 | FONTE-OPT-01 | Wait for the list read before the settings collector reschedules the update job | stability | S | low | applied |
-| FONTE-OPT-02 | Run pull-to-refresh and option-change checks in the app scope | stability | S | low | approved |
+| FONTE-OPT-02 | Run pull-to-refresh and option-change checks in the app scope | stability | S | low | applied |
 | FONTE-OPT-03 | Ship only English resources (localeFilters) | minimalism | S | low | approved |
 | FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | approved |
 | FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | approved |
@@ -47,7 +47,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: The changed lines come from 451559c (git blame), not from a 'Report:' commit. HomeScreen.kt:161 (710057d, Report) is left out on purpose. setOptions, the store format, the ETag rule and check() do not change. Only the scope of the caller changes. No dependency.
 - **Verify**: Merged from the stability and UI lenses (same root cause and same lines). The background job is not affected, because runBackground runs checkAll before installs (FonteApp.kt:167). To check: turn pre-releases off on an app with a pre-release as latest and press back at once. Without the fix, Home still offers the pre-release. With the fix, it offers the stable release.
 - **Effort**: S. **Risk**: low. **Net lines**: about -2 (estimate).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows FonteApp.getScope in DetailScreenKt and HomeScreenKt, and no composition scope in DetailScreenKt. Not checked: the back-press test in Verify and no run-time check of the UI on a device (no emulator or device was used).
+- **Status**: applied
 
 ### FONTE-OPT-03: Ship only English resources (localeFilters)
 - **What**: The UI is English only (owner rule; all app text is in Compose). But resources.arsc has 85 locale configs of library strings from Compose UI and material3, with 1,955 translated values that no app text uses. On a phone with another language, TalkBack reads these few library labels (for example 'Close sheet', 'Dismiss', 'On', 'Off') in that language and all other text in English.
