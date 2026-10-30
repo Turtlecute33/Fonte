@@ -35,7 +35,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: Lines 103-105 come from 451559c (git blame), not from a 'Report:' commit. UpdateJob.schedule and its fe9b34d migration (FONTE-PERF-004) do not change. No stored data, preference key, job ID or JobInfo changes. No dependency.
 - **Verify**: On an emulator, put "unmeteredOnly": false in apps.json of a debug build, run am kill, then cmd jobscheduler run -f app.fonte.debug 1 (the debug build has applicationIdSuffix ".debug", app/build.gradle.kts:42). Without the fix, no FonteLibrary 'Check' lines come and dumpsys jobscheduler shows a new window. With the fix, the check lines come and the window does not move.
 - **Effort**: S. **Risk**: low. **Net lines**: about +1 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows the awaitLoaded call in the collector coroutine. Not checked: the emulator test in Verify and no run-time check on a device (no emulator or device was used).
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows the awaitLoaded call in the collector coroutine. Not checked: the emulator test in Verify and no run-time check on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. A forced job run after am kill gave the 'Check' lines, and the window did not move. A cold start did not move it. A settings change still reschedules the job.
 - **Status**: applied
 
 ### FONTE-OPT-02: Run pull-to-refresh and option-change checks in the app scope
@@ -47,7 +47,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: The changed lines come from 451559c (git blame), not from a 'Report:' commit. HomeScreen.kt:161 (710057d, Report) is left out on purpose. setOptions, the store format, the ETag rule and check() do not change. Only the scope of the caller changes. No dependency.
 - **Verify**: Merged from the stability and UI lenses (same root cause and same lines). The background job is not affected, because runBackground runs checkAll before installs (FonteApp.kt:167). To check: turn pre-releases off on an app with a pre-release as latest and press back at once. Without the fix, Home still offers the pre-release. With the fix, it offers the stable release.
 - **Effort**: S. **Risk**: low. **Net lines**: about -2 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows FonteApp.getScope in DetailScreenKt and HomeScreenKt, and no composition scope in DetailScreenKt. Not checked: the back-press test in Verify and no run-time check of the UI on a device (no emulator or device was used).
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows FonteApp.getScope in DetailScreenKt and HomeScreenKt, and no composition scope in DetailScreenKt. Not checked: the back-press test in Verify and no run-time check of the UI on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. After pre-releases off and an immediate back, Home offered the stable release. An option-change check ended after a rotation destroyed the screen.
 - **Status**: applied
 
 ### FONTE-OPT-03: Ship only English resources (localeFilters)
@@ -61,7 +61,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Effort**: S. **Risk**: low. **Net lines**: about +2 (estimate).
 - **Owner check**: MegaGlass-Android commit eb730fa (Report: MEGAGLASS-PERF-006) kept the string locales on purpose, so that library text and TalkBack labels stay in the device language. This item does the opposite. Choose one rule for all apps before you approve it.
 - **Owner decision**: English-only library strings in all apps, MegaGlass included (2026-10-30). Apply it.
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then :app:assembleRelease passed as a separate command. apkanalyzer resources configs --type string on the debug and release APKs: only 'default' (before: 86 configs). app_name is 'Fonte' in the default config. unzip -lv: resources.arsc 15,756 B, Stored (before: 146,792 B). Release APK 2,545,949 B (before: 2,677,181 B, with FONTE-OPT-01 and -02 also in the new build). Not checked: no run-time check of the UI or TalkBack on a device (no emulator or device was used). The README APK size is not changed here.
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then :app:assembleRelease passed as a separate command. apkanalyzer resources configs --type string on the debug and release APKs: only 'default' (before: 86 configs). app_name is 'Fonte' in the default config. unzip -lv: resources.arsc 15,756 B, Stored (before: 146,792 B). Release APK 2,545,949 B (before: 2,677,181 B, with FONTE-OPT-01 and -02 also in the new build). Not checked: no run-time check of the UI or TalkBack on a device (no emulator or device was used). The README APK size is not changed here. Device check (emulator, 2026-10-30): pass. With the app locale it-IT, the library labels were in English.
 - **Status**: applied
 
 ### FONTE-OPT-04: Mark Row @Immutable so that unchanged list rows skip recomposition
@@ -73,7 +73,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: A compile-time annotation on the in-memory UI model only. apps.json encode and decode, schemas, preference keys, the Vault, tokens and install gates do not change. FonteApp.kt:43 comes from 451559c, not from a 'Report:' commit. The PERF-008 lines stay. No dependency: compose-runtime is already on the classpath.
 - **Verify**: The only failure mode is stale UI if a model list is changed after it is built, and none is. To check: compare the Layout Inspector recomposition counts on Home during one download, before and after.
 - **Effort**: S. **Risk**: low. **Net lines**: about +2 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures). javap of the debug classes: Row.<clinit> no longer sets $stable (0 = stable), and AppItem and Header compare `row` with Composer.changed (equals). Not checked: no Layout Inspector recomposition count and no run-time check of the UI on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest.
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures). javap of the debug classes: Row.<clinit> no longer sets $stable (0 = stable), and AppItem and Header compare `row` with Composer.changed (equals). Not checked: no Layout Inspector recomposition count and no run-time check of the UI on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest. Device check (emulator, 2026-10-30): pass. During a download, only the downloading row changed. No stale UI.
 - **Status**: applied
 
 ### FONTE-OPT-05: Exclude META-INF/*.version from the APK
@@ -87,7 +87,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Effort**: S. **Risk**: low. **Net lines**: about +1 (estimate).
 - **Owner check**: Confirm that this edit to the FONTE-PERF-011 lines is acceptable. If not, add a separate `excludes += "META-INF/*.version"` line and keep lines 63-67 as they are (precedent: Ombra a99a4d4, OMBRA-PERF-002).
 - **Owner decision**: Add a separate excludes line for META-INF/*.version. Do not edit the existing excludes lines from the security review (FONTE-PERF-011).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. unzip -l and apkanalyzer files list of the release APK: no .version entry, 14 entries (was 69). apkanalyzer apk file-size: 2,535,494 B (2,545,949 B at a8ccf45; this difference also includes the FONTE-OPT-04 code). The lines from FONTE-PERF-011 do not change. Not checked: no run-time check on a device (no emulator or device was used).
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. unzip -l and apkanalyzer files list of the release APK: no .version entry, 14 entries (was 69). apkanalyzer apk file-size: 2,535,494 B (2,545,949 B at a8ccf45; this difference also includes the FONTE-OPT-04 code). The lines from FONTE-PERF-011 do not change. Not checked: no run-time check on a device (no emulator or device was used). Device check (2026-10-30): pass. The release and debug APKs have no .version entry.
 - **Status**: applied
 
 ### FONTE-OPT-06: Remove the 8 icons that nothing uses
@@ -99,7 +99,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: UI icon constants only. Icons.kt has only commit 451559c (no 'Report:' commit). No icon in use changes. No storage, preference or key change.
 - **Verify**: A compile error shows a missed reference at once. The release build is the check.
 - **Effort**: S. **Risk**: low. **Net lines**: about -8 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. Release APK: classes.dex 2,498,120 B (was 2,502,084 B at 8c518a6, 3,964 B less); apkanalyzer apk file-size 2,531,530 B (was 2,535,494 B). grep -a -F of each of the 8 full path strings in the new classes.dex: 0 hits (1 hit each before). Not checked: no run-time check of the UI on a device (no emulator or device was used).
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. Release APK: classes.dex 2,498,120 B (was 2,502,084 B at 8c518a6, 3,964 B less); apkanalyzer apk file-size 2,531,530 B (was 2,535,494 B). grep -a -F of each of the 8 full path strings in the new classes.dex: 0 hits (1 hit each before). Not checked: no run-time check of the UI on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. The icons in use showed, with no run-time error.
 - **Status**: applied
 
 ### FONTE-OPT-07: Remove the unused lifecycle-viewmodel-compose dependency
@@ -111,7 +111,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: The dependency line comes from 451559c. The verification-metadata.xml lines to delete (583-595) come from 778b9a4 (0.1.1). Report commit 37ac06b (FONTE-SEC-007) only added 30 lines of parent POM and BOM checksums, and set the empty-Gradle-home rule. The change does not relax verification: the file is regenerated the same way, and it only loses the entries of a removed dependency. No storage, preference or key change.
 - **Verify**: Run a release build and the unit tests from an empty Gradle home with no verification error, and compare the dex class list (no change expected).
 - **Effort**: S. **Risk**: low. **Net lines**: about -15 (estimate).
-- **Verified**: From an empty GRADLE_USER_HOME, --write-verification-metadata sha256 with :app:testDebugUnitTest :app:lintDebug :app:assembleDebug, then with :app:assembleRelease, passed; the metadata diff is only the removal of the 2 lifecycle-viewmodel-compose components (13 lines). From a second empty GRADLE_USER_HOME, with verification on, :app:testDebugUnitTest :app:lintDebug :app:assembleDebug, then :app:assembleRelease, passed with no verification error. JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. Release APK: the same 3,110 dex classes, the same 14 entries and sizes, and the same classes.dex SHA-256 as at 2e2c263; apkanalyzer apk file-size 2,531,530 B (no change). Not checked: no run-time check of the UI on a device (no emulator or device was used).
+- **Verified**: From an empty GRADLE_USER_HOME, --write-verification-metadata sha256 with :app:testDebugUnitTest :app:lintDebug :app:assembleDebug, then with :app:assembleRelease, passed; the metadata diff is only the removal of the 2 lifecycle-viewmodel-compose components (13 lines). From a second empty GRADLE_USER_HOME, with verification on, :app:testDebugUnitTest :app:lintDebug :app:assembleDebug, then :app:assembleRelease, passed with no verification error. JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. Release APK: the same 3,110 dex classes, the same 14 entries and sizes, and the same classes.dex SHA-256 as at 2e2c263; apkanalyzer apk file-size 2,531,530 B (no change). Not checked: no run-time check of the UI on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. Navigation worked, and the Detail screen stayed open through 5 activity recreations.
 - **Status**: applied
 
 ### FONTE-OPT-08: Make 'Also uninstall the app' one labelled checkbox row that survives a rotation
@@ -123,7 +123,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: UI only. The ACTION_DELETE intent and library.remove do not change. Lines 202-213 come from 451559c, not from a 'Report:' commit. No dependency.
 - **Verify**: A lost tick fails in the safe direction (the app stays installed), so the impact is low. To check: with TalkBack on, open Remove on an installed app, tick the row, rotate, and make sure that the tick stays and one stop reads the label.
 - **Effort**: S. **Risk**: low. **Net lines**: about +2 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:lintDebug passed. The row also gets padding(vertical = 12.dp) inside the toggleable (as in AddSheet) and a 12 dp gap before the label, because a Checkbox with onCheckedChange = null has no 48 dp minimum size. Not checked: the TalkBack and rotation test in Verify, and no run-time check of the UI on a device (no emulator or device was used).
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:lintDebug passed. The row also gets padding(vertical = 12.dp) inside the toggleable (as in AddSheet) and a 12 dp gap before the label, because a Checkbox with onCheckedChange = null has no 48 dp minimum size. Not checked: the TalkBack and rotation test in Verify, and no run-time check of the UI on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. With TalkBack on, one stop read the label, a double tap ticked the row, and the tick stayed after a rotation.
 - **Status**: applied
 
 ### FONTE-OPT-09: Delete leftover APKs before the list read
@@ -135,7 +135,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: FonteApp.kt:100 comes from 451559c. cleanUp last changed in 778b9a4 (0.1.1, before the audit). The cbfcf35 (Report) lines 91-98 do not change. The same files are deleted at the same process start. No storage format, check or dependency changes.
 - **Verify**: The splash now also waits for the listing and deletion of two cache folders (usually empty). This is a zero-cost reorder. The owner can skip it if only proven wins are wanted.
 - **Effort**: S. **Risk**: low. **Net lines**: about 0 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap of the debug classes shows Installer.cleanUp before Store.load in the start-up IO coroutine. Not checked: the process-death race (not reproduced) and no run-time check of the splash or a download on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest.
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap of the debug classes shows Installer.cleanUp before Store.load in the start-up IO coroutine. Not checked: the process-death race (not reproduced) and no run-time check of the splash or a download on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest. Device check (emulator, 2026-10-30): pass. Leftover files were deleted at start and the list loaded. A download that the system ran again after a process kill completed.
 - **Status**: applied
 
 ### FONTE-OPT-10: Treat a stack overflow from the JSON parser as an unreadable answer, not a crash
@@ -147,7 +147,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: Library.kt:57, :83 and Transfer.kt:37 come from 451559c. userText (665432d, FONTE-UX-003) and Library.kt:74 do not change. No parse rule, size cap, redirect rule, host rule or stored format changes. Only an Error that crashes the app becomes the existing parser error. No dependency.
 - **Verify**: On an emulator, import a synthetic file of 200,000 '['. Expect a FATAL StackOverflowError without the fix and the snackbar with the fix. The trigger is rare (it needs a hostile self-hosted forge or file), so the impact is low.
 - **Effort**: S. **Risk**: low. **Net lines**: about +7 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (53 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:lintDebug passed. The new SourcesTest test uses a fake HttpGet that throws StackOverflowError, because the JVM org.json has a depth limit; Sources.check then throws JSONException. Not checked: the import of 200,000 '[' in Verify, and no run-time check on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest.
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (53 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:lintDebug passed. The new SourcesTest test uses a fake HttpGet that throws StackOverflowError, because the JVM org.json has a depth limit; Sources.check then throws JSONException. Not checked: the import of 200,000 '[' in Verify, and no run-time check on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest. Device check (emulator, 2026-10-30): pass. The import showed 'Not an Obtainium or Fonte export', with no crash.
 - **Status**: applied
 
 ## Areas in good shape
@@ -174,13 +174,39 @@ Full check on 2026-10-30, on branch optimize at 94f1a47. No adb, emulator or dev
   - JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleDebug: pass.
   - JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease: pass.
 - **Not applied**: none. All ten items are applied, one commit each (git log --grep=Optimization).
-- **Owner checks by hand (device)**: install the release APK over 0.1.7 and do one check, one download and one install. Then the Verify steps that no run did:
-  - FONTE-OPT-01: with a non-default setting, am kill, then cmd jobscheduler run -f app.fonte.debug 1. Expect the 'Check' lines and no new job window.
-  - FONTE-OPT-02: turn pre-releases off on an app with a pre-release as latest and press back at once. Expect Home to offer the stable release.
-  - FONTE-OPT-03: on a phone with another system language, the library labels (for example 'Close sheet') are now in English. Check them with TalkBack.
-  - FONTE-OPT-04: optional. Compare the Layout Inspector recomposition counts on Home during one download.
-  - FONTE-OPT-08: with TalkBack on, open Remove on an installed app, tick the row and rotate. Expect one stop with the label, and the tick stays. The box is now about 12 dp further left, in line with the dialog text.
-  - FONTE-OPT-09: the start-up and a download after a process death (the race was not reproduced).
-  - FONTE-OPT-10: import a file of 200,000 '['. Expect a snackbar, not a crash.
+- **Owner checks by hand (device)**: see 'Still for the owner' in Device checks (2026-10-30) below. The emulator did the other Verify steps.
 - **Owner checks by hand (Windows)**: none. Fonte has no Windows part.
 - **Other apps**: the FONTE-OPT-03 decision also covers MegaGlass-Android and Plico. This pass changed only Fonte.
+
+### Device checks (2026-10-30)
+
+Method: the debug build of branch optimize at 651876d (0.1.7, versionCode 8) ran on an emulator with Android 17 (API level 37). No real account or server was used. Only anonymous reads of public GitHub releases were made. Local fakes: a test apps.json with non-default settings, a test entry that points at an installed system app (Remove was never confirmed), leftover cache files, and a synthetic import file.
+
+| Item | Check | Result |
+|---|---|---|
+| FONTE-OPT-01 | Non-default settings, am kill, forced job run: 'Check' lines come, no new window | pass |
+| FONTE-OPT-01 | A cold start from the launcher does not move the next check | pass |
+| FONTE-OPT-01 | A settings change still reschedules the job | pass |
+| FONTE-OPT-02 | Pre-releases off, back at once: Home offers the stable release | pass (the check ended 0.6 s after back, so this run alone does not prove the old bug) |
+| FONTE-OPT-02 | Option change, then rotation at once: the check ends after the screen is destroyed | pass |
+| FONTE-OPT-02 | Pull-to-refresh, then rotation at once | pass (the checks ended before the rotation; same path as the row above) |
+| FONTE-OPT-03 | APK has only the default string config | pass |
+| FONTE-OPT-03 | Library labels are English with another language (per-app locale it-IT) | pass (framework text such as relative times stays Italian) |
+| FONTE-OPT-04 | Layout Inspector recomposition counts during one download | not possible (needs Android Studio) |
+| FONTE-OPT-04 | No stale UI during a download | pass |
+| FONTE-OPT-05 | No META-INF/*.version in the APK | pass |
+| FONTE-OPT-06 | The icons in use still show | pass |
+| FONTE-OPT-07 | The Navigator ViewModel works without lifecycle-viewmodel-compose | pass |
+| FONTE-OPT-08 | One labelled row, a tap on the label ticks it, the tick stays after a rotation | pass |
+| FONTE-OPT-08 | With TalkBack: one stop reads the label, a double tap ticks, the tick stays after a rotation | pass |
+| FONTE-OPT-09 | Leftover files are deleted at start, and the list loads | pass |
+| FONTE-OPT-09 | A download that the system runs again after a process kill completes | pass (functional check, the race was not forced) |
+| FONTE-OPT-09 / owner check | One check, one download and one install to the end | not possible (the check and download pass; the install permission for the debug build was refused) |
+| FONTE-OPT-10 | Import of 200,000 '[': a snackbar, not a crash | pass (a hostile self-hosted forge was not checked, it needs a server) |
+
+Crash and ANR: none. The crash log had 0 lines for the whole session, and the only process death was the planned kill for FONTE-OPT-09.
+
+Still for the owner:
+- On the phone: install the release APK over the real 0.1.7. Do one check, one download and one install to the end, and the self-update of app.fonte.
+- FONTE-OPT-01 on the phone: after the update, open the app and make sure with dumpsys jobscheduler that the window does not move. Then make sure that a natural background run completes.
+- FONTE-OPT-04: optional. Compare the Layout Inspector recomposition counts on Home during one download, before and after. A real phone gives meaningful frame times.
