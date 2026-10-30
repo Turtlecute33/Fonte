@@ -21,7 +21,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | applied |
 | FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | applied |
 | FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | applied |
-| FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | approved |
+| FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | applied |
 | FONTE-OPT-08 | Make 'Also uninstall the app' one labelled checkbox row that survives a rotation | ui-ux | S | low | approved |
 | FONTE-OPT-09 | Delete leftover APKs before the list read | stability | S | low | approved |
 | FONTE-OPT-10 | Treat a stack overflow from the JSON parser as an unreadable answer, not a crash | stability | S | low | approved |
@@ -111,7 +111,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: The dependency line comes from 451559c. The verification-metadata.xml lines to delete (583-595) come from 778b9a4 (0.1.1). Report commit 37ac06b (FONTE-SEC-007) only added 30 lines of parent POM and BOM checksums, and set the empty-Gradle-home rule. The change does not relax verification: the file is regenerated the same way, and it only loses the entries of a removed dependency. No storage, preference or key change.
 - **Verify**: Run a release build and the unit tests from an empty Gradle home with no verification error, and compare the dex class list (no change expected).
 - **Effort**: S. **Risk**: low. **Net lines**: about -15 (estimate).
-- **Status**: approved
+- **Verified**: From an empty GRADLE_USER_HOME, --write-verification-metadata sha256 with :app:testDebugUnitTest :app:lintDebug :app:assembleDebug, then with :app:assembleRelease, passed; the metadata diff is only the removal of the 2 lifecycle-viewmodel-compose components (13 lines). From a second empty GRADLE_USER_HOME, with verification on, :app:testDebugUnitTest :app:lintDebug :app:assembleDebug, then :app:assembleRelease, passed with no verification error. JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures), then JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease passed. Release APK: the same 3,110 dex classes, the same 14 entries and sizes, and the same classes.dex SHA-256 as at 2e2c263; apkanalyzer apk file-size 2,531,530 B (no change). Not checked: no run-time check of the UI on a device (no emulator or device was used).
+- **Status**: applied
 
 ### FONTE-OPT-08: Make 'Also uninstall the app' one labelled checkbox row that survives a rotation
 - **What**: In the 'Remove X?' dialog, only the checkbox toggles. A tap on the text 'Also uninstall the app' does nothing. TalkBack reads the box with no label ('Not checked, checkbox') and the text as a separate stop. The tick is in a plain remember, but the dialog flag uses rememberSaveable. Thus a rotation or theme change keeps the dialog open but clears the tick, and Remove then does not uninstall.

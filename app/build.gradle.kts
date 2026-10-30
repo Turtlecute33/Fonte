@@ -126,7 +126,6 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime.compose)
-    implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.navigation3.runtime)
     implementation(libs.navigation3.ui)
     // Installs the Compose baseline profiles on sideloaded installs: faster first start and scrolling.
