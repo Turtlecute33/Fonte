@@ -18,7 +18,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 | FONTE-OPT-01 | Wait for the list read before the settings collector reschedules the update job | stability | S | low | applied |
 | FONTE-OPT-02 | Run pull-to-refresh and option-change checks in the app scope | stability | S | low | applied |
 | FONTE-OPT-03 | Ship only English resources (localeFilters) | minimalism | S | low | applied |
-| FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | approved |
+| FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | applied |
 | FONTE-OPT-05 | Exclude META-INF/*.version from the APK | minimalism | S | low | approved |
 | FONTE-OPT-06 | Remove the 8 icons that nothing uses | minimalism | S | low | approved |
 | FONTE-OPT-07 | Remove the unused lifecycle-viewmodel-compose dependency | minimalism | S | low | approved |
@@ -73,7 +73,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: A compile-time annotation on the in-memory UI model only. apps.json encode and decode, schemas, preference keys, the Vault, tokens and install gates do not change. FonteApp.kt:43 comes from 451559c, not from a 'Report:' commit. The PERF-008 lines stay. No dependency: compose-runtime is already on the classpath.
 - **Verify**: The only failure mode is stale UI if a model list is changed after it is built, and none is. To check: compare the Layout Inspector recomposition counts on Home during one download, before and after.
 - **Effort**: S. **Risk**: low. **Net lines**: about +2 (estimate).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures). javap of the debug classes: Row.<clinit> no longer sets $stable (0 = stable), and AppItem and Header compare `row` with Composer.changed (equals). Not checked: no Layout Inspector recomposition count and no run-time check of the UI on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest.
+- **Status**: applied
 
 ### FONTE-OPT-05: Exclude META-INF/*.version from the APK
 - **What**: 55 META-INF/*.version files (53 androidx, 2 kotlinx coroutines) are in the release APK, of 69 entries in total. No code reads them at run time. Ombra, Plico and MegaGlass-Android already exclude them. Fonte, the template that the other apps copy, does not.

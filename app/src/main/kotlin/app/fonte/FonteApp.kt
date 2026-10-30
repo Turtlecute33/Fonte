@@ -10,6 +10,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.StrictMode
+import androidx.compose.runtime.Immutable
 import app.fonte.data.Store
 import app.fonte.data.Token
 import app.fonte.data.TrackedApp
@@ -39,7 +40,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** One row of the app list: the tracked app, its installed state, and a running install. */
+/**
+ * One row of the app list: the tracked app, its installed state, and a running install.
+ * Immutable: no list in it changes after it is built, so Compose skips the rows that did not change.
+ */
+@Immutable
 data class Row(val app: TrackedApp, val installed: Packages.Info?, val task: Installer.Task?) {
     val update: Boolean = installed != null && Versions.hasUpdate(app, installed.versionCode, installed.versionName)
 }
