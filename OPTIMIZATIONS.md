@@ -162,3 +162,25 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - Shrinking: R8 full mode and resource shrinking are on, there is no third-party library and no native code, and the app code is 160 KB of the 2.16 MB dex. Compose and material3 make up most of the remaining size, and they are the chosen UI stack.
 - Abstractions: no DI and no forwarding layers. Each interface has a reason (test fake, 4 source implementations, pure Gate).
 - UI: predictive back, shared motion from motionScheme, clear progress and error feedback, empty and first-run states, accessibility actions from the review, and confirmations before destructive actions.
+
+## Results
+
+Full check on 2026-10-30, on branch optimize at 94f1a47. No adb, emulator or device was used.
+
+- **Size**: release APK 2,677,181 B before (0.1.7 at 2081207, build/Fonte-0.1.7.apk), 2,531,950 B after (apkanalyzer apk file-size; versionName 0.1.7, versionCode 8). That is 145,231 B (5.4 %) less, also for each self-update. The APK has 14 entries (was 69), only the 'default' string config (was 86 configs) and no META-INF/*.version file. README.md now says about 2.5 MB.
+- **Checks**: each command was run alone, in this order.
+  - JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest: pass. The task was up to date; a run with --rerun also passed: 53 tests, 0 failures, 0 errors.
+  - JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:lintDebug: pass, 0 errors, 5 warnings. No warning comes from a commit of this pass: a newer Gradle (9.8.2) and AGP (9.5.0), and 3 UseKtx hints at Components.kt:228 (778b9a4), HomeScreen.kt:305 and Packages.kt:74 (451559c).
+  - JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleDebug: pass.
+  - JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:assembleRelease: pass.
+- **Not applied**: none. All ten items are applied, one commit each (git log --grep=Optimization).
+- **Owner checks by hand (device)**: install the release APK over 0.1.7 and do one check, one download and one install. Then the Verify steps that no run did:
+  - FONTE-OPT-01: with a non-default setting, am kill, then cmd jobscheduler run -f app.fonte.debug 1. Expect the 'Check' lines and no new job window.
+  - FONTE-OPT-02: turn pre-releases off on an app with a pre-release as latest and press back at once. Expect Home to offer the stable release.
+  - FONTE-OPT-03: on a phone with another system language, the library labels (for example 'Close sheet') are now in English. Check them with TalkBack.
+  - FONTE-OPT-04: optional. Compare the Layout Inspector recomposition counts on Home during one download.
+  - FONTE-OPT-08: with TalkBack on, open Remove on an installed app, tick the row and rotate. Expect one stop with the label, and the tick stays. The box is now about 12 dp further left, in line with the dialog text.
+  - FONTE-OPT-09: the start-up and a download after a process death (the race was not reproduced).
+  - FONTE-OPT-10: import a file of 200,000 '['. Expect a snackbar, not a crash.
+- **Owner checks by hand (Windows)**: none. Fonte has no Windows part.
+- **Other apps**: the FONTE-OPT-03 decision also covers MegaGlass-Android and Plico. This pass changed only Fonte.
