@@ -15,7 +15,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 
 | ID | Finding | Area | Effort | Risk | Status |
 |---|---|---|---|---|---|
-| FONTE-OPT-01 | Wait for the list read before the settings collector reschedules the update job | stability | S | low | approved |
+| FONTE-OPT-01 | Wait for the list read before the settings collector reschedules the update job | stability | S | low | applied |
 | FONTE-OPT-02 | Run pull-to-refresh and option-change checks in the app scope | stability | S | low | approved |
 | FONTE-OPT-03 | Ship only English resources (localeFilters) | minimalism | S | low | approved |
 | FONTE-OPT-04 | Mark Row @Immutable so that unchanged list rows skip recomposition | speed | S | low | approved |
@@ -35,7 +35,8 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: Lines 103-105 come from 451559c (git blame), not from a 'Report:' commit. UpdateJob.schedule and its fe9b34d migration (FONTE-PERF-004) do not change. No stored data, preference key, job ID or JobInfo changes. No dependency.
 - **Verify**: On an emulator, put "unmeteredOnly": false in apps.json of a debug build, run am kill, then cmd jobscheduler run -f app.fonte.debug 1 (the debug build has applicationIdSuffix ".debug", app/build.gradle.kts:42). Without the fix, no FonteLibrary 'Check' lines come and dumpsys jobscheduler shows a new window. With the fix, the check lines come and the window does not move.
 - **Effort**: S. **Risk**: low. **Net lines**: about +1 (estimate).
-- **Status**: approved
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows the awaitLoaded call in the collector coroutine. Not checked: the emulator test in Verify and no run-time check on a device (no emulator or device was used).
+- **Status**: applied
 
 ### FONTE-OPT-02: Run pull-to-refresh and option-change checks in the app scope
 - **What**: Pull-to-refresh (HomeScreen.kt:186) and the check after a pre-release or APK-filter change (DetailScreen.kt:152, :180) run in a rememberCoroutineScope. NavDisplay disposes an entry when it leaves the scene, and MainActivity has no configChanges. Thus back, navigation or rotation during the check cancels it. Library.check rethrows CancellationException and writes nothing. After a cancelled option change, setOptions has already saved the new options and cleared the ETag, but app.latest stays the release that Sources.pick chose with the old options. Home then shows 'Update' for the pre-release or APK that the user just excluded, and a tap installs it (Installer.run installs app.latest). This stays until the next manual check, the next foreground check after 30 min, or the background job. A cancelled pull-to-refresh leaves the apps that are not yet checked with old data.

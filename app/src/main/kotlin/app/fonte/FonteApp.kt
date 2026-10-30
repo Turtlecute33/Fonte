@@ -100,7 +100,9 @@ class FonteApp : Application() {
             installer.cleanUp()
             UpdateJob.schedule(this@FonteApp, store.settings, replace = false)
         }
+        // The loaded settings are not a change: a replace moves the next check and stops a running job.
         scope.launch {
+            store.awaitLoaded()
             store.state.map { it.settings }.distinctUntilChanged().drop(1).collect { UpdateJob.schedule(this@FonteApp, it, replace = true) }
         }
         // The updates notification follows the list: an update that the user installs in the app leaves it.
