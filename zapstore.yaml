@@ -21,5 +21,8 @@ license: GPL-3.0-only
 tags: [app-updater, privacy, grapheneos]
 icon: ./docs/icon.png
 images:
+  - ./docs/screenshots/apps.png
+  - ./docs/screenshots/detail.png
+  - ./docs/screenshots/add.png
   - ./docs/banner.png
 metadata_sources: []
