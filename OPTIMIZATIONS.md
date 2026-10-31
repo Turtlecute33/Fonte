@@ -35,7 +35,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: Lines 103-105 come from 451559c (git blame), not from a 'Report:' commit. UpdateJob.schedule and its fe9b34d migration (FONTE-PERF-004) do not change. No stored data, preference key, job ID or JobInfo changes. No dependency.
 - **Verify**: On an emulator, put "unmeteredOnly": false in apps.json of a debug build, run am kill, then cmd jobscheduler run -f app.fonte.debug 1 (the debug build has applicationIdSuffix ".debug", app/build.gradle.kts:42). Without the fix, no FonteLibrary 'Check' lines come and dumpsys jobscheduler shows a new window. With the fix, the check lines come and the window does not move.
 - **Effort**: S. **Risk**: low. **Net lines**: about +1 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows the awaitLoaded call in the collector coroutine. Not checked: the emulator test in Verify and no run-time check on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. A forced job run after am kill gave the 'Check' lines, and the window did not move. A cold start did not move it. A settings change still reschedules the job.
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows the awaitLoaded call in the collector coroutine. Not checked: the emulator test in Verify and no run-time check on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. A forced job run after am kill gave the 'Check' lines, and the window did not move. A cold start did not move it. A settings change still reschedules the job. Phone check (2026-10-31): not possible. Background checks are off on the phone, so no update job is registered.
 - **Status**: applied
 
 ### FONTE-OPT-02: Run pull-to-refresh and option-change checks in the app scope
@@ -47,7 +47,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: The changed lines come from 451559c (git blame), not from a 'Report:' commit. HomeScreen.kt:161 (710057d, Report) is left out on purpose. setOptions, the store format, the ETag rule and check() do not change. Only the scope of the caller changes. No dependency.
 - **Verify**: Merged from the stability and UI lenses (same root cause and same lines). The background job is not affected, because runBackground runs checkAll before installs (FonteApp.kt:167). To check: turn pre-releases off on an app with a pre-release as latest and press back at once. Without the fix, Home still offers the pre-release. With the fix, it offers the stable release.
 - **Effort**: S. **Risk**: low. **Net lines**: about -2 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows FonteApp.getScope in DetailScreenKt and HomeScreenKt, and no composition scope in DetailScreenKt. Not checked: the back-press test in Verify and no run-time check of the UI on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. After pre-releases off and an immediate back, Home offered the stable release. An option-change check ended after a rotation destroyed the screen.
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap shows FonteApp.getScope in DetailScreenKt and HomeScreenKt, and no composition scope in DetailScreenKt. Not checked: the back-press test in Verify and no run-time check of the UI on a device (no emulator or device was used). Device check (emulator, 2026-10-30): pass. After pre-releases off and an immediate back, Home offered the stable release. An option-change check ended after a rotation destroyed the screen. Phone check (2026-10-31): pass. Pull-to-refresh with Back during the check worked.
 - **Status**: applied
 
 ### FONTE-OPT-03: Ship only English resources (localeFilters)
@@ -135,7 +135,7 @@ Fonte is in good shape. Start-up, network, storage and lifecycle are careful, an
 - **Safety**: FonteApp.kt:100 comes from 451559c. cleanUp last changed in 778b9a4 (0.1.1, before the audit). The cbfcf35 (Report) lines 91-98 do not change. The same files are deleted at the same process start. No storage format, check or dependency changes.
 - **Verify**: The splash now also waits for the listing and deletion of two cache folders (usually empty). This is a zero-cost reorder. The owner can skip it if only proven wins are wanted.
 - **Effort**: S. **Risk**: low. **Net lines**: about 0 (estimate).
-- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap of the debug classes shows Installer.cleanUp before Store.load in the start-up IO coroutine. Not checked: the process-death race (not reproduced) and no run-time check of the splash or a download on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest. Device check (emulator, 2026-10-30): pass. Leftover files were deleted at start and the list loaded. A download that the system ran again after a process kill completed.
+- **Verified**: JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew :app:testDebugUnitTest :app:assembleDebug passed (52 tests, 0 failures); javap of the debug classes shows Installer.cleanUp before Store.load in the start-up IO coroutine. Not checked: the process-death race (not reproduced) and no run-time check of the splash or a download on a device (no emulator or device was used). No release build: the change touches no build file, resource or manifest. Device check (emulator, 2026-10-30): pass. Leftover files were deleted at start and the list loaded. A download that the system ran again after a process kill completed. Phone check (2026-10-31): pass. One download and one install of the release build completed.
 - **Status**: applied
 
 ### FONTE-OPT-10: Treat a stack overflow from the JSON parser as an unreadable answer, not a crash
@@ -207,6 +207,17 @@ Method: the debug build of branch optimize at 651876d (0.1.7, versionCode 8) ran
 Crash and ANR: none. The crash log had 0 lines for the whole session, and the only process death was the planned kill for FONTE-OPT-09.
 
 Still for the owner:
-- On the phone: install the release APK over the real 0.1.7. Do one check, one download and one install to the end, and the self-update of app.fonte.
-- FONTE-OPT-01 on the phone: after the update, open the app and make sure with dumpsys jobscheduler that the window does not move. Then make sure that a natural background run completes.
+- The self-update of app.fonte, when a new Fonte release exists.
+- FONTE-OPT-01 on the phone: optional, with background checks on. Open the app and make sure with dumpsys jobscheduler that the window does not move. Then make sure that a natural background run completes.
 - FONTE-OPT-04: optional. Compare the Layout Inspector recomposition counts on Home during one download, before and after. A real phone gives meaningful frame times.
+
+### Phone session (2026-10-31)
+
+On 2026-10-31, Claude and the owner did a phone session on the owner's Pixel 9 Pro XL (GrapheneOS, Android 17). Claude built the release APK of branch optimize. Claude made sure that its signing certificate is the same as the certificate of the installed release. Claude installed it over the installed release with adb install -r, so the app data stayed. The owner did the steps on the phone and reported them as good. Claude read logcat after each step: no crash and no ANR for the app.
+
+- **Build**: release 0.1.7 (versionCode 8) over the installed 0.1.7. Certificate SHA-256 cc154a2b...ffa4, the same value as in README.md.
+- **List**: pass.
+- **Pull-to-refresh with Back during the check (FONTE-OPT-02)**: pass.
+- **Download and install**: pass. A DownloadJob ran and finished.
+- **Settings**: pass.
+- **FONTE-OPT-01**: not possible. Background checks are off on the phone, so no update job is registered. dumpsys jobscheduler showed no app.fonte UpdateJob before or after.
