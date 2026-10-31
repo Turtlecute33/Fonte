@@ -1,0 +1,25 @@
+# Zapstore listing. The Zapstore indexer reads this file and publishes each new GitHub release.
+repository: https://github.com/Turtlecute33/Fonte
+summary: Installs and updates apps straight from their source. Fast, private and minimal.
+description: |
+  Fonte keeps the apps that you install from outside an app store up to date. Give it a link to a
+  repository or an app page. Fonte finds the latest release, picks the APK for your phone, checks it
+  and installs it.
+
+  It is an alternative to Obtainium, with fewer features and a smaller attack surface, and it
+  imports your Obtainium list. Fonte has no native code, no WebView and no dynamic code loading. It
+  runs on GrapheneOS with "Restrict dynamic code loading" on. No trackers, no Google Play Services.
+
+  - **Sources**: GitHub (also private repositories, with a token), GitLab (also self-hosted),
+    Codeberg, Forgejo and Gitea, F-Droid and IzzyOnDroid.
+  - **The right APK**: the build for your processor, an optional name filter, and pre-releases if
+    you want them.
+  - **Background updates**: a check every 3, 6, 12 or 24 hours. By default, downloads wait for an
+    unmetered network.
+  - **Updates itself**, **share to add**, and **import and export** of Obtainium and Fonte lists.
+license: GPL-3.0-only
+tags: [app-updater, privacy, grapheneos]
+icon: ./docs/icon.png
+images:
+  - ./docs/banner.png
+metadata_sources: []
