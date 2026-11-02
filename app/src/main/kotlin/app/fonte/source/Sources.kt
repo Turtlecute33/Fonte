@@ -5,6 +5,7 @@ import app.fonte.data.Release
 import app.fonte.data.Source
 import app.fonte.data.SourceKind
 import app.fonte.data.TrackedApp
+import app.fonte.install.RepoIndex
 import app.fonte.net.Http
 import app.fonte.net.HttpGet
 import org.json.JSONException
@@ -13,10 +14,16 @@ import java.net.URLEncoder
 import java.time.OffsetDateTime
 
 /**
- * What a source needs: the HTTP client, the GitHub token (read off the main thread), and the device's ABIs.
- * [tokenRefused] gets the token that GitHub refused.
+ * What a source needs: the HTTP client, the GitHub token (read off the main thread), the device's ABIs, and the
+ * signed F-Droid repo indexes. [tokenRefused] gets the token that GitHub refused.
  */
-class Ctx(http: Lazy<HttpGet>, val githubToken: () -> String?, val abis: List<String>, val tokenRefused: (String) -> Unit = {}) {
+class Ctx(
+    http: Lazy<HttpGet>,
+    val githubToken: () -> String?,
+    val abis: List<String>,
+    val index: RepoIndex,
+    val tokenRefused: (String) -> Unit = {},
+) {
     val http: HttpGet by http
 }
 
@@ -51,6 +58,7 @@ object Sources {
         SourceKind.GitLab -> GitLab
         SourceKind.Forgejo -> Forgejo
         SourceKind.FDroid, SourceKind.Izzy -> FDroid
+        SourceKind.Repo -> Repo
     }
 
     /**
@@ -75,11 +83,17 @@ object Sources {
         return null
     }
 
-    /** The source behind a link. A link to an unknown host is probed for a Forgejo/Gitea API, then a GitLab API. */
+    /**
+     * The source behind a link. A link to an unknown host is probed for a Forgejo/Gitea API, then a GitLab API. A
+     * repo link with no app ([Links.Parsed.Choose]) is for the caller: it must choose the app first.
+     */
     suspend fun resolve(text: String, ctx: Ctx, hint: SourceKind? = null): Source {
-        val parsed = Links.parse(text, hint) ?: throw IOException("Not a GitHub, GitLab, Codeberg, Forgejo, F-Droid or IzzyOnDroid link")
-        if (parsed is Links.Parsed.Known) return parsed.source
-        parsed as Links.Parsed.Probe
+        val parsed = when (val p = Links.parse(text, hint)) {
+            is Links.Parsed.Known -> return p.source
+            is Links.Parsed.Probe -> p
+            is Links.Parsed.Choose -> throw IOException("Choose an app of this repo")
+            null -> throw IOException("Not a GitHub, GitLab, Codeberg, Forgejo, F-Droid, IzzyOnDroid or F-Droid repo link")
+        }
         var failure: IOException? = null
         suspend fun probe(url: String, field: String): Boolean = try {
             val r = ctx.http.get(url, mapOf("Accept" to "application/json"), maxBytes = 1 shl 20)
@@ -94,7 +108,7 @@ object Sources {
         Links.gitlab(parsed.host, parsed.segments)?.source?.let {
             if (probe("https://${it.host}/api/v4/projects/${encode(it.path)}", "path_with_namespace")) return it
         }
-        throw failure ?: IOException("${parsed.host} runs no GitLab, Forgejo or Gitea that Fonte can read")
+        throw failure ?: IOException("${parsed.host} runs no GitLab, Forgejo or Gitea that Fonte can read. For an F-Droid repo, use its link with the fingerprint.")
     }
 
     /** The stored ETag, sent back as If-None-Match. A source can give each phone its own ETag and so link its checks. */

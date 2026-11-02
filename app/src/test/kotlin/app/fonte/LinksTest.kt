@@ -5,6 +5,7 @@ import app.fonte.data.SourceKind
 import app.fonte.source.Links
 import org.junit.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class LinksTest {
@@ -36,6 +37,38 @@ class LinksTest {
         assertEquals(Source(SourceKind.FDroid, "f-droid.org", "org.fdroid.fdroid"), known("https://f-droid.org/packages/org.fdroid.fdroid"))
         assertEquals(Source(SourceKind.Izzy, "apt.izzysoft.de", "com.aurora.store"), known("https://apt.izzysoft.de/fdroid/index/apk/com.aurora.store"))
         assertEquals(Source(SourceKind.Izzy, "apt.izzysoft.de", "com.aurora.store"), known("https://android.izzysoft.de/frepo/com.aurora.store"))
+    }
+
+    @Test fun fdroidRepos() {
+        val key = "b7c2eefd8dac7806af67dfcd92eb18126bc08312a7f2d6f3862e46013c7a6135"
+        val guardian = Links.Parsed.Choose("guardianproject.info", "fdroid/repo", key)
+        assertEquals(guardian, Links.parse("https://guardianproject.info/fdroid/repo?fingerprint=${key.uppercase()}"))
+        assertEquals(guardian, Links.parse("Add: fdroidrepos://guardianproject.info/fdroid/repo/?fingerprint=$key"))
+        assertEquals(guardian, Links.parse("https://fdroid.link/#https://guardianproject.info/fdroid/repo?fingerprint=$key"))
+        assertEquals("https://guardianproject.info/fdroid/repo", guardian.address)
+        // One app: the link that Fonte makes for it.
+        val tor = guardian.source("org.torproject.torbrowser")
+        assertEquals(Source(SourceKind.Repo, "guardianproject.info", "fdroid/repo/org.torproject.torbrowser", key), tor)
+        assertEquals(tor, known(tor.webUrl))
+        assertEquals(guardian.address, tor.repoAddress)
+        assertEquals("org.torproject.torbrowser", tor.packageName)
+        // A fingerprint wins over a forge host, and "www." stays.
+        assertEquals(Links.Parsed.Choose("gitlab.com", "guardianproject/fdroid-repo/-/raw/master/fdroid/repo", key), Links.parse("https://gitlab.com/guardianproject/fdroid-repo/-/raw/master/fdroid/repo?fingerprint=$key"))
+        assertEquals(Links.Parsed.Choose("www.gpdroid.org", "fdroid/repo", key), Links.parse("https://www.gpdroid.org/fdroid/repo?fingerprint=$key"))
+        // A repo at the root of its host.
+        val root = Links.parse("https://repo.example.org/?fingerprint=$key") as Links.Parsed.Choose
+        assertEquals("https://repo.example.org", root.address)
+        assertEquals(root.address, root.source("org.example.app").repoAddress)
+        // A short fingerprint, another parameter, a port, a user, a dot segment, the no-TLS scheme: no repo.
+        for (bad in listOf("?fingerprint=B7C2", "?fingerprint=$key&x=1")) assertNull(Links.parse("https://guardianproject.info/fdroid/repo$bad"), bad)
+        assertNull(Links.parse("https://guardianproject.info:8443/fdroid/repo?fingerprint=$key"))
+        assertNull(Links.parse("https://u@guardianproject.info/fdroid/repo?fingerprint=$key"))
+        assertNull(Links.parse("https://guardianproject.info/fdroid/../repo?fingerprint=$key"))
+        assertNull(Links.parse("fdroidrepo://guardianproject.info/fdroid/repo?fingerprint=$key"))
+        // Only repo sources have a key, and they must have one.
+        assertFailsWith<IllegalArgumentException> { Source(SourceKind.Repo, "h", "p/a.b") }
+        assertFailsWith<IllegalArgumentException> { Source(SourceKind.GitHub, "github.com", "o/r", key) }
+        assertFailsWith<IllegalArgumentException> { Source(SourceKind.Repo, "h", "p/a.b", key.uppercase()) }
     }
 
     @Test fun unknownHostNeedsProbe() {

@@ -30,7 +30,8 @@ run on GrapheneOS with "Restrict dynamic code loading" (memory and storage) on.
 ## Features
 
 - **Sources**: GitHub (also private repositories, with a token), GitLab (also self-hosted),
-  Codeberg, Forgejo and Gitea, F-Droid and IzzyOnDroid.
+  Codeberg, Forgejo and Gitea, F-Droid and IzzyOnDroid, and other F-Droid repos (for example the
+  Guardian Project repo). Give the repo link with its fingerprint, then choose the app.
 - **The right APK**: the build for your processor, an optional name filter (regex), and
   pre-releases if you want them.
 - **Background updates**: a check every 3, 6, 12 or 24 hours. Apps that Fonte installed update
@@ -48,7 +49,9 @@ run on GrapheneOS with "Restrict dynamic code loading" (memory and storage) on.
 
 Before Fonte installs an APK, the APK must:
 
-- match the SHA-256 digest that GitHub publishes for the file;
+- match the SHA-256 digest that GitHub publishes for the file. For other F-Droid repos, match the
+  digest in the repo's signed index. Fonte checks that index with the fingerprint from the repo
+  link at each check, and refuses a repo link with no fingerprint;
 - be a valid, signed APK with native code (if any) for this device;
 - keep the package name that the app had before;
 - be signed with the pinned certificate. Fonte pins the certificate at the first install, or when
@@ -78,6 +81,9 @@ And also:
   protects the update. When you add a link to an unknown host, Fonte asks that host if it runs
   GitLab, Forgejo or Gitea. An import makes no probe, but Fonte checks each imported source at
   once and then at each interval. A list can name self-hosted GitLab and Forgejo hosts.
+- For other F-Droid repos, each check reads `entry.jar` (a few KB). Fonte downloads the full
+  index only when it changes (about 0.7 MB for the Guardian Project repo, an estimate), and sends
+  no ETag to these repos.
 - No cookies, no HTTP cache, and a User-Agent with no device data. Fonte sends back the ETag of
   the last answer of each source, so that a source with no change answers "not modified". A source
   can use the ETag to see that two checks come from the same phone.
@@ -123,6 +129,10 @@ Release builds are signed with the key that `scripts/make-release-key.sh` makes;
   trusts its HTTPS answer. The pinned certificate and the version code protect the APK: a hostile
   server can only hide updates. At a first install, it can offer an older version that a signed
   index lists.
+- **Other F-Droid repos**: the signed index (v2). Fonte takes the highest version code with native
+  code for this device (or none). A version in a release channel, such as Beta, counts only with
+  pre-releases on. When the digest of the index in `entry.jar` is the same as at the last check,
+  nothing changed. Repos with only the old index (v1) are not supported.
 - **GitHub, GitLab, Codeberg, Forgejo and Gitea**: the 10 newest releases in one request. Fonte takes
   the newest one with an APK for this device. Drafts are skipped, and pre-releases are skipped
   unless you turn them on. On GitHub, when all 10 are pre-releases (for example the nightly builds
@@ -156,12 +166,15 @@ Run the JVM tests, lint and the two builds:
 ```
 
 The tests cover the link parser, the APK choice, the version compare, the parsers of all
-sources, the import formats, the store, the certificate pins, the install gates, the redirect
-rule for the token and the GitHub limit.
+sources, the import formats, the store, the certificate pins, the install gates, the signatures
+of the repo indexes, the redirect rule for the token and the GitHub limit. The index reader uses
+the Android JSON reader, so the JVM tests do not cover it; the emulator steps below do.
 
 On an Android 15 emulator, these steps were tested with real sources: add apps from each
 source, first install, an update of an app that another installer owns, a silent update in
-the background, the "tap to install" notification, and the Obtainium import. To run the
+the background, the "tap to install" notification, and the Obtainium import. On an Android 17 emulator: add Tor
+Browser from the Guardian Project repo, its first install, a background check with no change, and
+a repo link with a wrong fingerprint (refused). To run the
 background job at once:
 
 ```sh
@@ -178,4 +191,4 @@ Jetpack Compose and Kotlin coroutines (Apache-2.0), and Material Symbols icons (
 ---
 
 <sub>Fonte is an independent project. It is not affiliated with Obtainium, F-Droid, IzzyOnDroid,
-GitHub, GitLab or Codeberg.</sub>
+the Guardian Project, GitHub, GitLab or Codeberg.</sub>

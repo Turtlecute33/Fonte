@@ -76,7 +76,7 @@ object Transfer {
     }
 
     private fun fonte(root: JSONObject): List<Entry> = root.list("apps") {
-        val stated = runCatching { Source(SourceKind.valueOf(getString("kind")), getString("host"), getString("path")) }.getOrNull()
+        val stated = runCatching { Source(SourceKind.valueOf(getString("kind")), getString("host"), getString("path"), str("key")) }.getOrNull()
         // The checks of a pasted link: a file cannot name a host or path that a link could not.
         val source = stated?.let { s -> (Links.parse(s.webUrl, s.kind) as? Links.Parsed.Known)?.source?.takeIf { it == s } }
         Entry(
@@ -91,7 +91,7 @@ object Transfer {
         )
     }
 
-    /** The list, settings and pinned certificates; no token, no release data. */
+    /** The list, settings, pinned certificates and repo keys; no token, no release data. */
     fun export(apps: List<TrackedApp>): String = JSONObject()
         .put(FORMAT, 1)
         .put(
@@ -99,7 +99,7 @@ object Transfer {
             JSONArray(
                 apps.map {
                     JSONObject().put("kind", it.source.kind.name).put("host", it.source.host).put("path", it.source.path)
-                        .put("url", it.source.webUrl).put("package", it.packageName).put("name", it.name)
+                        .put("key", it.source.key).put("url", it.source.webUrl).put("package", it.packageName).put("name", it.name)
                         .put("prerelease", it.prerelease).put("filter", it.apkFilter).put("autoUpdate", it.autoUpdate).put("cert", it.cert)
                 },
             ),

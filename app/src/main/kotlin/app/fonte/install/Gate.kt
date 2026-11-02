@@ -45,6 +45,7 @@ object Gate {
             return Decision.Refuse("Refused: the APK is signed with a different key than the pinned one")
         }
         // Nothing pinned: a first install. F-Droid and IzzyOnDroid sign their index, so it vouches for the file.
+        // Other F-Droid repos need no gate here: the Installer checked the file against the digest of their signed index.
         val kind = app.source.kind
         if (pin == null && kind in RepoIndex.REPO_CERTS && archive.sha256 !in indexDigests()) {
             return Decision.Refuse("Refused: the APK is not in the signed ${kind.label} index")

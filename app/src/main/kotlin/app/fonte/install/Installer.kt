@@ -45,7 +45,7 @@ import java.util.zip.ZipFile
 
 /**
  * Download, checks, install. Before a session opens, the APK must:
- * - match the SHA-256 digest that the source publishes (GitHub);
+ * - match the SHA-256 digest that the source publishes (GitHub, or the signed index of another F-Droid repo);
  * - be a valid signed APK for this device's ABIs;
  * - have the package name the app had before;
  * - be signed with the pinned certificate (pinned at the first install or adoption; key rotation is followed);
@@ -59,6 +59,7 @@ import java.util.zip.ZipFile
 class Installer(
     private val context: Context,
     http: Lazy<Http>,
+    private val index: RepoIndex,
     /** The GitHub token, read off the main thread: with it, GitHub APKs download through the API (private repositories). */
     private val githubToken: () -> String?,
     private val store: Store,
@@ -101,7 +102,6 @@ class Installer(
     private val downloads = Semaphore(MAX_PARALLEL)
     private val installer get() = context.packageManager.packageInstaller
     private val dir get() = File(context.cacheDir, "apk").apply { mkdirs() }
-    private val index = RepoIndex(http, File(context.cacheDir, "index"))
 
     /**
      * Installs from the UI, in a [DownloadJob] when possible: then the download goes on when the user leaves Fonte.

@@ -1,11 +1,13 @@
 package app.fonte
 
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import app.fonte.data.Source
 import app.fonte.data.SourceKind
 import app.fonte.data.Store
 import app.fonte.data.TrackedApp
 import app.fonte.install.Packages
+import app.fonte.install.RepoIndex
 import app.fonte.source.Check
 import app.fonte.source.Ctx
 import app.fonte.source.Links
@@ -75,16 +77,42 @@ class Library(private val store: Store, private val packages: Packages, private 
         }
     }
 
-    /** Resolves [link], reads its latest release, and adds the app. An app that is installed already is adopted. */
-    suspend fun add(link: String, prerelease: Boolean, filter: String): TrackedApp = withContext(Dispatchers.IO) {
+    sealed interface Added {
+        data class App(val app: TrackedApp) : Added
+
+        /** The link names an F-Droid repo but no app: the user chooses one of [apps], by name. */
+        data class Choose(val apps: List<Choice>) : Added
+    }
+
+    /** An app of an F-Droid repo; [link] adds it. */
+    @Immutable
+    data class Choice(val link: String, val name: String, val packageName: String)
+
+    /**
+     * Resolves [link], reads its latest release, and adds the app. An app that is installed already is adopted.
+     * [name] is the name from a repo index, until the app is installed.
+     */
+    suspend fun add(link: String, prerelease: Boolean, filter: String, name: String? = null): Added = withContext(Dispatchers.IO) {
+        (Links.parse(link) as? Links.Parsed.Choose)?.let { repo ->
+            val apps = choices(repo)
+            return@withContext apps.singleOrNull()?.let { add(it.link, prerelease, filter, it.name) } ?: Added.Choose(apps)
+        }
         val source = Sources.resolve(link, ctx)
         store.app(source.id)?.let { throw IOException("${it.name} is in the list already") }
-        val draft = newApp(source, null, null, prerelease, filter, true, null)
+        val draft = newApp(source, null, name, prerelease, filter, true, null)
         val found = Sources.check(draft, ctx) as? Check.Found
         val release = found?.release ?: throw IOException(NO_APK)
         val app = draft.copy(latest = release, etag = found.etag, checkedAt = System.currentTimeMillis())
         store.update { d -> if (d.apps.any { it.id == app.id }) d else d.copy(apps = d.apps + app) }
-        app
+        Added.App(app)
+    }
+
+    /** The apps in the signed index of [repo], by name. The index stays in the cache for the check that follows. */
+    private suspend fun choices(repo: Links.Parsed.Choose): List<Choice> {
+        val index = ctx.index.entry(repo.address, repo.key, repo.host)
+        val apps = ctx.index.read(repo.address, index, repo.host) { RepoIndex.apps(it) }
+        if (apps.isEmpty()) throw IOException("This repo has no apps")
+        return apps.map { (pkg, name) -> Choice(repo.source(pkg).webUrl, name, pkg) }.sortedBy { it.name.lowercase() }
     }
 
     data class Imported(val added: Int, val known: Int, val skipped: List<String>)
@@ -142,7 +170,7 @@ class Library(private val store: Store, private val packages: Packages, private 
         autoUpdate: Boolean,
         cert: String?,
     ): TrackedApp {
-        val packageName = pkg ?: source.path.takeIf { source.kind == SourceKind.FDroid || source.kind == SourceKind.Izzy }
+        val packageName = pkg ?: source.packageName
         val installed = packageName?.let(packages::info)
         return TrackedApp(
             id = source.id,
@@ -201,10 +229,6 @@ class Library(private val store: Store, private val packages: Packages, private 
 
         /** Repository name, or for F-Droid packages the last part of the package name ("org.schabi.newpipe" → "Newpipe"). */
         fun defaultName(source: Source): String =
-            if (source.kind == SourceKind.FDroid || source.kind == SourceKind.Izzy) {
-                source.path.substringAfterLast('.').replaceFirstChar { it.uppercase() }
-            } else {
-                source.defaultName
-            }
+            source.packageName?.substringAfterLast('.')?.replaceFirstChar { it.uppercase() } ?: source.defaultName
     }
 }

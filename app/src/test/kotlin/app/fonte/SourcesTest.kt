@@ -1,8 +1,11 @@
 package app.fonte
 
+import app.fonte.data.Asset
+import app.fonte.data.Release
 import app.fonte.data.Source
 import app.fonte.data.SourceKind
 import app.fonte.data.TrackedApp
+import app.fonte.install.RepoIndex
 import app.fonte.net.Http
 import app.fonte.net.HttpGet
 import app.fonte.source.Check
@@ -12,10 +15,12 @@ import app.fonte.source.Forgejo
 import app.fonte.source.GitHub
 import app.fonte.source.GitLab
 import app.fonte.source.Notes
+import app.fonte.source.Repo
 import app.fonte.source.Sources
 import kotlinx.coroutines.test.runTest
 import org.json.JSONException
 import org.junit.Test
+import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -23,6 +28,9 @@ import kotlin.test.assertTrue
 
 class SourcesTest {
     private val abis = listOf("arm64-v8a", "armeabi-v7a")
+
+    /** These tests read no F-Droid repo. */
+    private val noIndex = RepoIndex(lazy { error("no index") }, File("unused"))
     private fun app(kind: SourceKind, path: String, prerelease: Boolean = false) =
         Source(kind, "host", path).let { TrackedApp(it.id, it, "x", prerelease = prerelease) }
 
@@ -59,7 +67,7 @@ class SourcesTest {
     @Test fun githubGoesOnWithoutARefusedToken() = runTest {
         val http = Scripted(401, 200, 200)
         var refused = false
-        val ctx = Ctx(lazyOf(http), { "t".takeIf { !refused } }, abis, tokenRefused = { refused = it == "t" })
+        val ctx = Ctx(lazyOf(http), { "t".takeIf { !refused } }, abis, noIndex, tokenRefused = { refused = it == "t" })
         val app = app(SourceKind.GitHub, "o/r")
         assertEquals("v1", (GitHub.check(app, ctx) as Check.Found).release?.tag)
         assertTrue(refused)
@@ -78,7 +86,7 @@ class SourcesTest {
                 override suspend fun get(url: String, headers: Map<String, String>, maxBytes: Int) =
                     Http.Response(code, url, answer.associate { (k, v) -> k to listOf(v) }, ByteArray(0))
             }
-            return runCatching { GitHub.check(app(SourceKind.GitHub, "o/r"), Ctx(lazyOf(http), { null }, abis)) }.exceptionOrNull()?.message
+            return runCatching { GitHub.check(app(SourceKind.GitHub, "o/r"), Ctx(lazyOf(http), { null }, abis, noIndex)) }.exceptionOrNull()?.message
         }
         assertTrue(error(403, "X-RateLimit-Remaining" to "0", "X-RateLimit-Reset" to "1")!!.startsWith("GitHub limit reached until"))
         assertTrue(error(429, "Retry-After" to "0")!!.startsWith("GitHub limit reached until"))
@@ -103,7 +111,7 @@ class SourcesTest {
                 return Http.Response(latestCode, url, emptyMap(), """{"tag_name":"v1.0.0","prerelease":false,$apk}""".toByteArray())
             }
         }
-        val ctx = Ctx(lazyOf(http), { null }, abis)
+        val ctx = Ctx(lazyOf(http), { null }, abis, noIndex)
         assertEquals("v1.0.0", (GitHub.check(app(SourceKind.GitHub, "o/r"), ctx) as Check.Found).release?.tag)
         assertEquals(listOf("https://api.github.com/repos/o/r/releases?per_page=10", "https://api.github.com/repos/o/r/releases/latest"), urls)
         // With pre-releases: the newest nightly, from one request.
@@ -120,7 +128,18 @@ class SourcesTest {
         val http = object : HttpGet {
             override suspend fun get(url: String, headers: Map<String, String>, maxBytes: Int): Http.Response = throw StackOverflowError()
         }
-        assertIs<JSONException>(runCatching { Sources.check(app(SourceKind.Forgejo, "o/r"), Ctx(lazyOf(http), { null }, abis)) }.exceptionOrNull())
+        assertIs<JSONException>(runCatching { Sources.check(app(SourceKind.Forgejo, "o/r"), Ctx(lazyOf(http), { null }, abis, noIndex)) }.exceptionOrNull())
+    }
+
+    @Test fun fdroidRepoPicksTheHighestCodeForThisDevice() {
+        val sha = "e".repeat(64)
+        fun v(code: Long, abis: List<String>, beta: Boolean = false) = RepoIndex.Version("1.$code", code, "/app_$code.apk", sha, 5, 7L, abis, beta)
+        val versions = listOf(v(14, listOf("x86_64")), v(10, listOf("arm64-v8a")), v(8, listOf("armeabi-v7a")), v(20, emptyList(), beta = true))
+        val r = Repo.pick(versions, prerelease = false, abis, "https://repo.example.org/fdroid/repo")!!
+        assertEquals(Release("1.10", "1.10", 10, 7L, assets = listOf(Asset("app_10.apk", "https://repo.example.org/fdroid/repo/app_10.apk", 5, sha))), r)
+        // A release channel only with pre-releases; no build for this device: no release.
+        assertEquals(20, Repo.pick(versions, prerelease = true, abis, "https://r")?.code)
+        assertNull(Repo.pick(listOf(v(14, listOf("x86_64"))), prerelease = false, abis, "https://r"))
     }
 
     @Test fun forgejo() {

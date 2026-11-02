@@ -129,13 +129,13 @@ class Store(dir: File, private val scope: CoroutineScope) {
         private fun JSONObject.long(name: String): Long? = if (isNull(name)) null else optLong(name)
 
         private fun TrackedApp.json() = JSONObject()
-            .put("kind", source.kind.name).put("host", source.host).put("path", source.path)
+            .put("kind", source.kind.name).put("host", source.host).put("path", source.path).put("key", source.key)
             .put("name", name).put("package", packageName).put("prerelease", prerelease).put("filter", apkFilter)
             .put("autoUpdate", autoUpdate).put("cert", cert).put("installedTag", installedTag).put("installedCode", installedCode)
             .put("latest", latest?.json()).put("etag", etag).put("checkedAt", checkedAt).put("error", error).put("addedAt", addedAt)
 
         private fun JSONObject.app(): TrackedApp {
-            val source = Source(SourceKind.valueOf(getString("kind")), getString("host"), getString("path"))
+            val source = Source(SourceKind.valueOf(getString("kind")), getString("host"), getString("path"), str("key"))
             return TrackedApp(
                 id = source.id,
                 source = source,

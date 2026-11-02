@@ -9,56 +9,86 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.jar.JarFile
 
 /**
- * The signed index (v2) of F-Droid and IzzyOnDroid. A first install from these repos has no pinned certificate yet,
- * so the APK's SHA-256 must be one of the package's files in the index. entry.jar must carry the repo's signature
- * (the key that the F-Droid client ships), and the index must match the digest and size in entry.jar.
- * The index is large (F-Droid: about 70 MB, compressed on the wire), so only first installs read it. The file stays
- * in the cache until the next app start, for more first installs.
+ * The signed index (v2) of an F-Droid repo. entry.jar must carry the repo's signature, and the index must match the
+ * digest and size in entry.jar. F-Droid and IzzyOnDroid: only a first install reads it (F-Droid: about 70 MB,
+ * compressed on the wire), because nothing is pinned yet; the APK's SHA-256 must be one of the package's files.
+ * Other repos: each check reads entry.jar, and the index when its digest changes; the APK digest comes from it.
+ * The files stay in the cache until the next app start.
  * Fonte keeps no entry.json timestamp, so an older signed entry.jar also passes: a hostile server can offer an older
- * version that an older index lists.
+ * version that an older index lists, or hide updates.
  */
 class RepoIndex(http: Lazy<Http>, private val dir: File) {
     private val http: Http by http
-    private val lock = Mutex()
+    private val locks = ConcurrentHashMap<String, Mutex>()
 
     class Index(val name: String, val sha256: String, val size: Long)
 
+    /** One APK of a package. [beta]: in a release channel, such as "Beta". [abis]: empty when it has no native code. */
+    class Version(
+        val name: String,
+        val code: Long,
+        val file: String,
+        val sha256: String,
+        val size: Long,
+        val added: Long?,
+        val abis: List<String>,
+        val beta: Boolean,
+    )
+
     /** The SHA-256 digests of [pkg]'s APKs in the signed index of the [kind] repo. [progress] follows the index download. */
-    suspend fun apkDigests(kind: SourceKind, pkg: String, progress: (done: Long, total: Long) -> Unit): Set<String> = lock.withLock {
-        val repo = FDroid.base(kind) + "/repo"
+    suspend fun apkDigests(kind: SourceKind, pkg: String, progress: (done: Long, total: Long) -> Unit): Set<String> {
+        val address = FDroid.base(kind) + "/repo"
+        val index = entry(address, REPO_CERTS.getValue(kind), kind.label)
+        return read(address, index, kind.label, progress) { file -> versions(file, pkg).mapTo(HashSet()) { it.sha256 } }
+    }
+
+    /** Downloads entry.jar of the repo at [address], checks it with [cert], and returns the index that it names. */
+    suspend fun entry(address: String, cert: String, label: String): Index {
+        val r = http.get("$address/entry.jar", maxBytes = 1 shl 20)
+        if (r.code != 200) throw IOException("$label index: HTTP ${r.code}")
         dir.mkdirs()
-        val r = http.get("$repo/entry.jar", maxBytes = 1 shl 20)
-        if (r.code != 200) throw IOException("${kind.label} index: HTTP ${r.code}")
-        val jar = File(dir, "${kind.name}-entry.jar")
-        val index = try {
+        // A file for each call: the checks of one repo run at the same time.
+        val jar = File.createTempFile("entry", ".jar", dir)
+        return try {
             jar.writeBytes(r.body)
-            readEntry(jar, REPO_CERTS.getValue(kind))
+            readEntry(jar, cert)
         } catch (e: SecurityException) {
-            throw IOException("Refused: the ${kind.label} index has a bad signature", e)
+            throw IOException("Refused: the $label index has a bad signature", e)
         } finally {
             jar.delete()
         }
-        val file = File(dir, "${kind.name}-${index.sha256}.json")
-        if (!file.exists()) {
-            dir.listFiles { f -> f.name.startsWith("${kind.name}-") }?.forEach { it.delete() }
-            val part = File(dir, "${kind.name}.part")
-            val d = try {
-                // The length from entry.jar: a compressed answer does not tell the decoded length.
-                http.download(repo + index.name, part, index.size) { done, _ -> progress(done, index.size) }
-            } catch (e: Exception) {
-                part.delete()
-                throw e
+    }
+
+    /**
+     * Gives the file of [index] to [parse], and downloads it first if the cache does not have it. One repo at a time:
+     * a new index replaces the old file, so no reader of the old file may run then.
+     */
+    suspend fun <T> read(address: String, index: Index, label: String, progress: (Long, Long) -> Unit = { _, _ -> }, parse: (File) -> T): T {
+        val prefix = "r" + Packages.sha256(address.toByteArray()).take(16)
+        return locks.computeIfAbsent(prefix) { Mutex() }.withLock {
+            val file = File(dir, "$prefix-${index.sha256}.json")
+            if (!file.exists()) {
+                dir.listFiles { f -> f.name.startsWith("$prefix-") }?.forEach { it.delete() }
+                val part = File(dir, "$prefix.part")
+                val d = try {
+                    // The length from entry.jar: a compressed answer does not tell the decoded length.
+                    http.download(address + index.name, part, index.size) { done, _ -> progress(done, index.size) }
+                } catch (e: Exception) {
+                    part.delete()
+                    throw e
+                }
+                if (d.size != index.size || d.sha256 != index.sha256) {
+                    part.delete()
+                    throw IOException("Refused: the $label index does not match its signature")
+                }
+                if (!part.renameTo(file)) throw IOException("Could not keep the $label index")
             }
-            if (d.size != index.size || d.sha256 != index.sha256) {
-                part.delete()
-                throw IOException("Refused: the ${kind.label} index does not match its signature")
-            }
-            if (!part.renameTo(file)) throw IOException("Could not keep the ${kind.label} index")
+            parse(file)
         }
-        digests(file, pkg)
     }
 
     /** Deletes the indexes that an earlier run kept. */
@@ -73,7 +103,10 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             SourceKind.Izzy to "3bf0d6abfeae2f401707b6d966be743bf0eee49c2561b9ba39073711f628937a",
         )
         private const val MAX_INDEX = 512L shl 20
+        private const val MAX_NAME = 100
         private val NAME = Regex("""^/[A-Za-z0-9._-]+\.json$""")
+        private val APK = Regex("""^/[A-Za-z0-9._+~-]+\.apk$""")
+        private val SHA256 = Regex("^[0-9a-f]{64}$")
 
         /**
          * Reads entry.json from [jar]. Its signature must verify and come from [cert]. A changed entry.json throws
@@ -93,28 +126,94 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             index
         }
 
-        /** packages → [pkg] → versions → each → file → sha256. Stops after [pkg]; skips everything else. */
-        private fun digests(file: File, pkg: String): Set<String> {
-            val found = HashSet<String>()
-            JsonReader(file.bufferedReader(bufferSize = 64 shl 10)).use { r ->
+        /** packages → [pkg] → versions. Stops after [pkg]; skips everything else. A version with a bad file is left out. */
+        fun versions(file: File, pkg: String): List<Version> {
+            val found = ArrayList<Version>()
+            reader(file).use { r ->
                 r.fields { top ->
                     if (top != "packages") return@fields r.skipValue()
                     r.fields { name ->
                         if (name != pkg) return@fields r.skipValue()
                         r.fields { part ->
                             if (part != "versions") return@fields r.skipValue()
-                            r.fields { _ ->
-                                r.fields { key ->
-                                    if (key != "file") return@fields r.skipValue()
-                                    r.fields { f -> if (f == "sha256") found += r.nextString().lowercase() else r.skipValue() }
-                                }
-                            }
+                            r.fields { _ -> r.version()?.let(found::add) }
                         }
                         return found
                     }
                 }
             }
             return found
+        }
+
+        /** The package names and names (English if there is one) of all apps in the index. */
+        fun apps(file: File): Map<String, String> {
+            val found = HashMap<String, String>()
+            reader(file).use { r ->
+                r.fields { top ->
+                    if (top != "packages") return@fields r.skipValue()
+                    r.fields { pkg ->
+                        var name: String? = null
+                        r.fields { part ->
+                            if (part != "metadata") return@fields r.skipValue()
+                            r.fields { key -> if (key == "name") name = r.localized() else r.skipValue() }
+                        }
+                        found[pkg] = name?.trim()?.take(MAX_NAME)?.ifEmpty { null } ?: pkg
+                    }
+                }
+            }
+            return found
+        }
+
+        private fun reader(file: File) = JsonReader(file.bufferedReader(bufferSize = 64 shl 10))
+
+        private fun JsonReader.version(): Version? {
+            var name = ""
+            var code = 0L
+            var path = ""
+            var sha256 = ""
+            var size = 0L
+            var added: Long? = null
+            var abis = emptyList<String>()
+            var beta = false
+            fields { key ->
+                when (key) {
+                    "added" -> added = nextLong()
+                    "file" -> fields { f ->
+                        when (f) {
+                            "name" -> path = nextString()
+                            "sha256" -> sha256 = nextString().lowercase()
+                            "size" -> size = nextLong()
+                            else -> skipValue()
+                        }
+                    }
+                    "manifest" -> fields { m ->
+                        when (m) {
+                            "versionName" -> name = nextString()
+                            "versionCode" -> code = nextLong()
+                            "nativecode" -> abis = strings()
+                            else -> skipValue()
+                        }
+                    }
+                    "releaseChannels" -> beta = strings().isNotEmpty()
+                    else -> skipValue()
+                }
+            }
+            return if (code > 0 && APK.matches(path) && SHA256.matches(sha256)) Version(name, code, path, sha256, size, added, abis, beta) else null
+        }
+
+        /** A localized text: en-US, then en, then the first one. */
+        private fun JsonReader.localized(): String? {
+            val texts = HashMap<String, String>()
+            fields { lang -> texts[lang] = nextString() }
+            return texts["en-US"] ?: texts["en"] ?: texts.values.firstOrNull()
+        }
+
+        private fun JsonReader.strings(): List<String> {
+            val list = ArrayList<String>()
+            beginArray()
+            while (hasNext()) list += nextString()
+            endArray()
+            return list
         }
 
         private inline fun JsonReader.fields(each: (String) -> Unit) {

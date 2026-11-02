@@ -2,6 +2,7 @@ package app.fonte
 
 import app.fonte.data.SourceKind
 import app.fonte.install.RepoIndex
+import app.fonte.source.Links
 import org.junit.Test
 import java.io.File
 import java.util.zip.ZipFile
@@ -9,7 +10,7 @@ import java.util.zip.ZipOutputStream
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-/** entry.jar files as F-Droid and IzzyOnDroid published them in October 2026. */
+/** entry.jar files as F-Droid and IzzyOnDroid published them in October 2026, and the Guardian Project in November 2026. */
 class RepoIndexTest {
     private fun fixture(name: String) = File(javaClass.classLoader!!.getResource(name)!!.toURI())
 
@@ -20,6 +21,14 @@ class RepoIndexTest {
         val izzy = RepoIndex.readEntry(fixture("izzy-entry.jar"), RepoIndex.REPO_CERTS.getValue(SourceKind.Izzy))
         assertEquals("98073592c8df10ba291d3e2b3da8e1beda31d6ec788bdb7dbc01c4e8bb76d14e", izzy.sha256)
         assertEquals(14456805, izzy.size)
+    }
+
+    @Test fun acceptsAnotherRepoWithTheKeyFromItsLink() {
+        val repo = Links.parse("https://guardianproject.info/fdroid/repo?fingerprint=B7C2EEFD8DAC7806AF67DFCD92EB18126BC08312A7F2D6F3862E46013C7A6135") as Links.Parsed.Choose
+        val index = RepoIndex.readEntry(fixture("guardian-entry.jar"), repo.key)
+        assertEquals("ee4f781ff49e8d6e240dd0be556aa32f93468fc51b70e36cf9757b86e66d3614", index.sha256)
+        assertEquals(693310, index.size)
+        assertFailsWith<SecurityException> { RepoIndex.readEntry(fixture("guardian-entry.jar"), RepoIndex.REPO_CERTS.getValue(SourceKind.FDroid)) }
     }
 
     @Test fun refusesAnotherRepoKey() {

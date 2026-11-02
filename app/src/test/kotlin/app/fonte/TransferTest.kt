@@ -84,9 +84,23 @@ class TransferTest {
         assertNull(e[6].cert)
     }
 
+    /** A made-up repo and key. */
+    private val repo = Source(SourceKind.Repo, "repo.example.org", "fdroid/repo/org.example.app", a)
+    private val fromRepo = tracked.copy(id = repo.id, source = repo, packageName = "org.example.app")
+
     @Test fun storeRoundTrip() {
-        val d = Data(listOf(tracked), Settings(background = false, intervalHours = 12, autoInstall = false, unmeteredOnly = true))
+        val d = Data(listOf(tracked, fromRepo), Settings(background = false, intervalHours = 12, autoInstall = false, unmeteredOnly = true))
         assertEquals(d, Store.decode(JSONObject(Store.encode(d).toString())))
+    }
+
+    @Test fun fonteExportKeepsTheRepoKey() {
+        assertEquals(repo, Transfer.parse(Transfer.export(listOf(fromRepo))).single().source)
+        fun entry(host: String, path: String, key: String?) =
+            """{"fonte":1,"apps":[{"kind":"Repo","host":"$host","path":"$path","key":${key?.let { "\"$it\"" }},"url":""}]}"""
+        // No key, a bad key, or a host or path that a link cannot name: no source.
+        for (bad in listOf(entry(repo.host, repo.path, null), entry(repo.host, repo.path, "zz"), entry("u@evil.example", repo.path, a), entry(repo.host, "../org.example.app", a))) {
+            assertNull(Transfer.parse(bad).single().source, bad)
+        }
     }
 
     @Test fun storeSkipsOnlyUnreadableEntries() {

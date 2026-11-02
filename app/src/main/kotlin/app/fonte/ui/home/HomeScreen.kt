@@ -327,7 +327,7 @@ private fun Empty(onAdd: () -> Unit, onImport: () -> Unit) {
         Text("No apps yet", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Add apps from GitHub, GitLab, Codeberg, Forgejo, F-Droid or IzzyOnDroid. Fonte keeps them up to date.",
+            "Add apps from GitHub, GitLab, Codeberg, Forgejo, F-Droid, IzzyOnDroid or other F-Droid repos. Fonte keeps them up to date.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

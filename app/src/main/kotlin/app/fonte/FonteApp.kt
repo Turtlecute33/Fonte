@@ -17,6 +17,7 @@ import app.fonte.data.TrackedApp
 import app.fonte.data.Vault
 import app.fonte.install.Installer
 import app.fonte.install.Packages
+import app.fonte.install.RepoIndex
 import app.fonte.net.Http
 import app.fonte.source.Ctx
 import app.fonte.source.Versions
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * One row of the app list: the tracked app, its installed state, and a running install.
@@ -81,8 +83,10 @@ class FonteApp : Application() {
         notifier = Notifier(this)
         // Built on first use, off the main thread: the engine loads the platform's network stack.
         val http = lazy { Http(this) }
-        val ctx = Ctx(http, token::toSend, Build.SUPPORTED_ABIS.toList(), token::refuse)
-        installer = Installer(this, http, token::toSend, store, packages, notifier, scope)
+        // One cache for checks and installs: a check of a repo leaves its index there for the install.
+        val index = RepoIndex(http, File(cacheDir, "index"))
+        val ctx = Ctx(http, token::toSend, Build.SUPPORTED_ABIS.toList(), index, token::refuse)
+        installer = Installer(this, http, index, token::toSend, store, packages, notifier, scope)
         library = Library(store, packages, ctx)
         // Off the main thread: each check result and each download step builds and sorts the list again.
         rows = combine(store.state, packages.installed, installer.tasks) { data, installed, tasks ->
