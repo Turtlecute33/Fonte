@@ -133,13 +133,13 @@ class SourcesTest {
 
     @Test fun fdroidRepoPicksTheHighestCodeForThisDevice() {
         val sha = "e".repeat(64)
-        fun v(code: Long, abis: List<String>, beta: Boolean = false) = RepoIndex.Version("1.$code", code, "/app_$code.apk", sha, 5, 7L, abis, beta)
+        fun v(code: Long, abis: List<String>, beta: Boolean = false) = RepoIndex.Version("1.$code", code, "/app_$code.apk", sha, 5, 7L, abis, beta, 0)
         val versions = listOf(v(14, listOf("x86_64")), v(10, listOf("arm64-v8a")), v(8, listOf("armeabi-v7a")), v(20, emptyList(), beta = true))
-        val r = Repo.pick(versions, prerelease = false, abis, "https://repo.example.org/fdroid/repo")!!
+        val r = Repo.pick(versions, prerelease = false, abis, "https://repo.example.org/fdroid/repo", sdk = 35)!!
         assertEquals(Release("1.10", "1.10", 10, 7L, assets = listOf(Asset("app_10.apk", "https://repo.example.org/fdroid/repo/app_10.apk", 5, sha))), r)
         // A release channel only with pre-releases; no build for this device: no release.
-        assertEquals(20, Repo.pick(versions, prerelease = true, abis, "https://r")?.code)
-        assertNull(Repo.pick(listOf(v(14, listOf("x86_64"))), prerelease = false, abis, "https://r"))
+        assertEquals(20, Repo.pick(versions, prerelease = true, abis, "https://r", sdk = 35)?.code)
+        assertNull(Repo.pick(listOf(v(14, listOf("x86_64"))), prerelease = false, abis, "https://r", sdk = 35))
     }
 
     @Test fun forgejo() {

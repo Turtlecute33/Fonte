@@ -101,6 +101,8 @@ class FonteApp : Application() {
             library.addSelf()
             val tracked = trackedPackages().toSet()
             packages.refresh(tracked)
+            // A token file that cannot be read shows as not set before the first check (Review STORAGE-4).
+            token.get()
             _ready.value = true
             // A new or removed app: read the installed packages again. The set that was just read does not count.
             launch {
@@ -110,10 +112,12 @@ class FonteApp : Application() {
             notifier.setUp()
             UpdateJob.schedule(this@FonteApp, store.settings, replace = false)
         }
-        // The loaded settings are not a change: a replace moves the next check and stops a running job.
+        // The loaded settings are not a change: a replace moves the next check and stops a running job. So only the
+        // settings that the job uses count (review CRITIC-4).
         scope.launch {
             store.awaitLoaded()
-            store.state.map { it.settings }.distinctUntilChanged().drop(1).collect { UpdateJob.schedule(this@FonteApp, it, replace = true) }
+            store.state.map { it.settings.background to it.settings.intervalHours }.distinctUntilChanged().drop(1)
+                .collect { UpdateJob.schedule(this@FonteApp, store.settings, replace = true) }
         }
         // The updates notification follows the list: an update that the user installs in the app leaves it.
         // Only changes after the start count: the first list can come before the installed versions.
@@ -150,9 +154,13 @@ class FonteApp : Application() {
         registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
     }
 
+    private var started = 0
+
     /** An activity came to the front: show the installed state as it is now, and check if the last check is old. */
     fun onForeground() {
-        installer.visible = true
+        // A count, not a flag: a shared link starts a second activity in the sender's task, and its stop must not
+        // hide this one (Review STORAGE-2).
+        installer.visible = ++started > 0
         scope.launch {
             // After the start: its read of the installed packages is new, so this one is skipped.
             ready.first { it }
@@ -167,7 +175,7 @@ class FonteApp : Application() {
     }
 
     fun onBackground() {
-        installer.visible = false
+        installer.visible = --started > 0
     }
 
     /**
@@ -188,8 +196,9 @@ class FonteApp : Application() {
             }
         }.sortedBy { it.packageName == packageName } // Last: the install of Fonte itself ends this process.
         val install = settings.autoInstall && (!settings.unmeteredOnly || withContext(Dispatchers.IO) { unmetered(network) })
+        // A release that a background install refused or sent to the user does not download again (review CRITIC-2).
         val left = updates.filter { app ->
-            !(install && app.autoUpdate && installer.install(app.id, background = true))
+            !(install && app.autoUpdate && app.latest?.tag != app.refusedTag && installer.install(app.id, background = true))
         }
         notifier.updatesAvailable(left.map { it.name })
     }

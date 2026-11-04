@@ -82,7 +82,7 @@ object Transfer {
         Entry(
             url = source?.webUrl ?: optString("url"),
             source = source,
-            packageName = str("package"),
+            packageName = str("package")?.takeIf(Links::isPackageName),
             name = str("name"),
             prerelease = optBoolean("prerelease"),
             filter = optString("filter"),

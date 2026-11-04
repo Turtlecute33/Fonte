@@ -51,7 +51,9 @@ object GitLab : SourceApi {
             for (i in 0 until links.length()) {
                 val l = links.getJSONObject(i)
                 val url = l.optString("direct_asset_url").ifEmpty { l.optString("url") }
-                if (url.isNotEmpty()) assets += Asset(l.optString("name").ifEmpty { fileName(url) }, url)
+                // The link title is free text ("Android APK"): then the file name comes from the URL (Review SOURCES-1).
+                val title = l.optString("name")
+                if (url.isNotEmpty()) assets += Asset(if (title.endsWith(".apk", true)) title else fileName(url), url)
             }
         }
         if (projectId != null) UPLOAD.findAll(description).forEach { m ->

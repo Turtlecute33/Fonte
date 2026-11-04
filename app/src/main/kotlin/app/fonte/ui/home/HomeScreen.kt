@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -73,6 +74,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fonte.Library
 import app.fonte.Row
 import app.fonte.app
+import app.fonte.install.Installer
 import app.fonte.ui.AppIcon
 import app.fonte.ui.GroupItem
 import app.fonte.ui.IMPORT_TYPES
@@ -206,7 +208,14 @@ fun HomeScreen(nav: Navigator) {
                     if (!canInstall) item(key = "permission") { InstallPermission(context) }
                     section("Updates", updates, nav) {
                         if (updates.any { it.task == null }) {
-                            TextButton(onClick = { updates.forEach { app.installer.start(it.app.id) } }) { Text("Update all") }
+                            TextButton(onClick = {
+                                // Offline: one message, not one error for each app (Review UIUX-9).
+                                if (context.getSystemService(ConnectivityManager::class.java).activeNetwork == null) {
+                                    scope.launch { snackbar.showSnackbar("No network") }
+                                } else {
+                                    updates.forEach { app.installer.start(it.app.id) }
+                                }
+                            }) { Text("Update all") }
                         }
                     }
                     section("Installed", installed, nav)
@@ -262,13 +271,14 @@ private fun AppItem(row: Row, index: Int, count: Int, onOpen: () -> Unit, modifi
     val latest = app.latest
     val subtitle = when {
         task != null -> taskText(context, task)
-        row.update && installed != null && latest != null -> "${installed.versionName} → ${latest.version}"
+        // The last error shows before the update, so a refused install stays visible (Review UIUX-1).
         app.error != null -> app.error
+        row.update && installed != null && latest != null -> "${installed.versionName} → ${latest.version}"
         installed != null -> installed.versionName
         latest != null -> latest.version
         else -> "Not checked yet"
     }
-    val failed = task == null && !row.update && app.error != null
+    val failed = task == null && app.error != null
     GroupItem(index, count, modifier, onClick = onOpen) {
         ItemRow(
             title = app.name,
@@ -279,7 +289,8 @@ private fun AppItem(row: Row, index: Int, count: Int, onOpen: () -> Unit, modifi
         ) {
             Spacer(Modifier.width(12.dp))
             when {
-                task != null -> TaskIndicator(task)
+                // A wait for install constraints does not block a manual update (Review CRITIC-3).
+                task != null && task !is Installer.Task.Waiting -> TaskIndicator(task)
                 row.update -> FilledTonalButton(onClick = { context.app.installer.start(app.id) }, shapes = ButtonDefaults.shapes()) { Text("Update") }
                 installed == null && latest != null ->
                     OutlinedButton(onClick = { context.app.installer.start(app.id) }, shapes = ButtonDefaults.shapes()) { Text("Install") }

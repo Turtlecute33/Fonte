@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,7 +44,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -96,7 +100,12 @@ fun DetailScreen(id: String, nav: Navigator) {
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = 32.dp + padding.calculateBottomPadding())) {
+        // The side insets too, so that rows do not go under a side navigation bar (Review UIUX-13).
+        val dir = LocalLayoutDirection.current
+        LazyColumn(
+            Modifier.fillMaxSize().padding(start = padding.calculateStartPadding(dir), end = padding.calculateEndPadding(dir)),
+            contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = 32.dp + padding.calculateBottomPadding()),
+        ) {
             item { Header(row) }
             item { Actions(row) }
             t.error?.let { error ->
@@ -245,7 +254,7 @@ private fun Header(row: Row) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         AppIcon(t.packageName, row.installed?.versionCode, t.name, 88.dp)
         Spacer(Modifier.height(16.dp))
-        Text(t.name, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+        Text(t.name, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
         Spacer(Modifier.height(4.dp))
         Text(
             t.packageName ?: t.source.path,
@@ -265,7 +274,8 @@ private fun Actions(row: Row) {
     val latest = t.latest
     val installed = row.installed
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
-        if (task != null) {
+        // A wait for install constraints does not block a manual update (Review CRITIC-3).
+        if (task != null && task !is Installer.Task.Waiting) {
             val d = task as? Installer.Task.Progress
             if (d != null && d.total > 0) {
                 LinearWavyProgressIndicator(progress = { (d.done.toFloat() / d.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
@@ -280,6 +290,15 @@ private fun Actions(row: Row) {
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
             return@Column
+        }
+        if (task is Installer.Task.Waiting) {
+            Text(
+                taskText(context, task),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+            Spacer(Modifier.height(10.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             // A binder call: off the main thread, so the Open button comes one frame later.

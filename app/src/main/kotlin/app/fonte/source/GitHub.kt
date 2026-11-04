@@ -25,10 +25,13 @@ import java.util.Date
 object GitHub : SourceApi {
     @Volatile private var blockedUntil = 0L
 
+    /** The token (null: none) that hit the limit. A different token is not blocked (Review NETWORK-1). */
+    @Volatile private var blockedFor: String? = null
+
     override suspend fun check(app: TrackedApp, ctx: Ctx): Check {
         val now = System.currentTimeMillis()
-        if (now < blockedUntil) throw limitError(blockedUntil)
         var token = ctx.githubToken()
+        if (now < blockedUntil && token == blockedFor) throw limitError(blockedUntil)
         var r = releases(app, ctx, token)
         if (r.code == 401 && token != null) {
             ctx.tokenRefused(token)
@@ -59,8 +62,10 @@ object GitHub : SourceApi {
             else "Not found on GitHub. For a private repository, the token needs read access to Contents.",
         )
         403, 429 -> if (r.header("x-ratelimit-remaining") == "0" || r.header("retry-after") != null) {
-            blockedUntil = r.header("x-ratelimit-reset")?.toLongOrNull()?.times(1000)
-                ?: (now + (r.header("retry-after")?.toLongOrNull() ?: 900) * 1000)
+            blockedFor = token
+            // retry-after first: a secondary limit is short. Max. 1 h, the device clock can be wrong (Review NETWORK-2).
+            blockedUntil = (r.header("retry-after")?.toLongOrNull()?.let { now + it * 1000 }
+                ?: r.header("x-ratelimit-reset")?.toLongOrNull()?.times(1000) ?: (now + 900_000)).coerceAtMost(now + 3_600_000)
             throw limitError(blockedUntil)
         } else {
             Sources.fail(r, "GitHub")

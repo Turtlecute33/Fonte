@@ -60,7 +60,9 @@ class Library(private val store: Store, private val packages: Packages, private 
             Log.d(TAG, "Check ${app.id}: ${if (c is Check.Found) c.release?.tag ?: "no APK" else "not modified"}")
             when (c) {
                 Check.Same -> store.updateApp(id) { it.copy(checkedAt = now, error = null) }
+                // Options changed during the check: the release was picked with the old ones (Review SOURCES-4).
                 is Check.Found -> store.updateApp(id) {
+                    if (it.prerelease != app.prerelease || it.apkFilter != app.apkFilter) return@updateApp it.copy(checkedAt = now)
                     it.copy(
                         latest = c.release,
                         etag = c.etag.takeIf { c.release != null },
@@ -127,6 +129,13 @@ class Library(private val store: Store, private val packages: Packages, private 
         } catch (e: Exception) {
             throw IOException("Not an Obtainium or Fonte export", e)
         }
+        // Review STORAGE-1: a bounded list, and a dedupe that is O(1) for each entry.
+        if (entries.size > MAX_IMPORT_APPS) throw IOException("More than $MAX_IMPORT_APPS apps in this file")
+        val seen = HashSet<String>()
+        for (a in store.apps) {
+            seen += a.id
+            a.packageName?.let { seen += "pkg:$it" }
+        }
         val added = ArrayList<TrackedApp>()
         val skipped = ArrayList<String>()
         var known = 0
@@ -137,12 +146,14 @@ class Library(private val store: Store, private val packages: Packages, private 
                 skipped += e.name ?: e.url
                 continue
             }
-            val all = store.apps + added
-            if (all.any { it.id == source.id || e.packageName != null && it.packageName == e.packageName }) {
+            if (source.id in seen || e.packageName != null && "pkg:${e.packageName}" in seen) {
                 known++
                 continue
             }
-            added += newApp(source, e.packageName, e.name, e.prerelease, e.filter, e.autoUpdate, e.cert)
+            val app = newApp(source, e.packageName, e.name, e.prerelease, e.filter, e.autoUpdate, e.cert)
+            added += app
+            seen += app.id
+            app.packageName?.let { seen += "pkg:$it" }
         }
         store.update { d -> d.copy(apps = d.apps + added.filter { a -> d.apps.none { it.id == a.id } }) }
         Imported(added.size, known, skipped)
@@ -175,7 +186,7 @@ class Library(private val store: Store, private val packages: Packages, private 
         return TrackedApp(
             id = source.id,
             source = source,
-            name = installed?.let { packages.label(it.pkg) } ?: name ?: defaultName(source),
+            name = installed?.let { packages.label(it.pkg) } ?: name?.take(MAX_NAME) ?: defaultName(source),
             packageName = packageName,
             prerelease = prerelease,
             apkFilter = filter.trim(),
@@ -196,7 +207,7 @@ class Library(private val store: Store, private val packages: Packages, private 
     fun remove(id: String) = store.update { d -> d.copy(apps = d.apps.filter { it.id != id }) }
 
     /** Forgets the pinned certificate: the next install pins the certificate of the APK it installs. */
-    fun resetPin(id: String) = store.updateApp(id) { it.copy(cert = null) }
+    fun resetPin(id: String) = store.updateApp(id) { it.copy(cert = null, refusedTag = null) }
 
     companion object {
         private const val TAG = "FonteLibrary"
@@ -204,6 +215,10 @@ class Library(private val store: Store, private val packages: Packages, private 
         const val NO_APK = "No APK for this device in the recent releases"
         private const val GITHUB_FRESH_MS = 3600_000L
         private const val MAX_TEXT = 200
+        private const val MAX_IMPORT_APPS = 1000
+
+        /** The same limit as RepoIndex: a long name from a file makes the screens slow (Review STORAGE-3). */
+        private const val MAX_NAME = 100
 
         /**
          * With no token, the automatic check when Fonte comes to the front leaves out GitHub apps checked in the last

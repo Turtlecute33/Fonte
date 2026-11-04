@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -68,13 +70,14 @@ fun AddSheet(initial: String, onDismiss: () -> Unit, onAdded: (TrackedApp) -> Un
     val scope = rememberCoroutineScope()
     val sheet = rememberBottomSheetState(SheetValue.Hidden, setOf(SheetValue.Hidden, SheetValue.Expanded))
     val focus = remember { FocusRequester() }
-    var link by rememberSaveable { mutableStateOf(initial) }
+    // Keyed on the initial link: a link shared while the sheet is open replaces the old one (Review UIUX-6).
+    var link by rememberSaveable(initial) { mutableStateOf(initial) }
     var prerelease by rememberSaveable { mutableStateOf(false) }
     var filter by rememberSaveable { mutableStateOf("") }
     var showFilter by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var choices by remember { mutableStateOf(emptyList<Library.Choice>()) }
+    var error by remember(initial) { mutableStateOf<String?>(null) }
+    var choices by remember(initial) { mutableStateOf(emptyList<Library.Choice>()) }
 
     fun submit(target: String = link, name: String? = null) {
         if (busy || target.isBlank()) return
@@ -100,7 +103,8 @@ fun AddSheet(initial: String, onDismiss: () -> Unit, onAdded: (TrackedApp) -> Un
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp).imePadding()) {
+        // Scrolls, so that the Add button stays reachable with the keyboard, in landscape and at large font (Review UIUX-4).
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp).imePadding()) {
             Text("Add app", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(6.dp))
             Text(

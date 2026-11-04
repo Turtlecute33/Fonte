@@ -81,6 +81,13 @@ And also:
   protects the update. When you add a link to an unknown host, Fonte asks that host if it runs
   GitLab, Forgejo or Gitea. An import makes no probe, but Fonte checks each imported source at
   once and then at each interval. A list can name self-hosted GitLab and Forgejo hosts.
+- Hosts that Fonte connects to:
+  - GitHub: `api.github.com`, `github.com`, and the download hosts after a redirect
+    (`*.githubusercontent.com`, for example `release-assets.githubusercontent.com`).
+  - `f-droid.org`, `apt.izzysoft.de`, `gitlab.com` and `codeberg.org`, when your list has an app
+    from them.
+  - Each self-hosted GitLab, Forgejo or Gitea host and each F-Droid repo that you add, and each
+    host where their releases put an APK.
 - For other F-Droid repos, each check reads `entry.jar` (a few KB). Fonte downloads the full
   index only when it changes (about 0.7 MB for the Guardian Project repo, an estimate), and sends
   no ETag to these repos.

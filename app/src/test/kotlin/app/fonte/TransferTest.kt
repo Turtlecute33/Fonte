@@ -84,6 +84,11 @@ class TransferTest {
         assertNull(e[6].cert)
     }
 
+    @Test fun fonteImportDropsABadPackageName() {
+        val e = Transfer.parse("""{"fonte":1,"apps":[{"kind":"GitHub","host":"github.com","path":"o/r","package":"x"}]}""").single()
+        assertNull(e.packageName)
+    }
+
     /** A made-up repo and key. */
     private val repo = Source(SourceKind.Repo, "repo.example.org", "fdroid/repo/org.example.app", a)
     private val fromRepo = tracked.copy(id = repo.id, source = repo, packageName = "org.example.app")

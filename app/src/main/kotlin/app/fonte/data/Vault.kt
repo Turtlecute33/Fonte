@@ -2,7 +2,6 @@ package app.fonte.data
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import android.security.keystore.StrongBoxUnavailableException
 import java.security.GeneralSecurityException
 import java.security.KeyStore
 import java.security.ProviderException
@@ -46,7 +45,8 @@ class Vault {
         (store.getKey(ALIAS, null) as SecretKey?)?.let { return it }
         return try {
             generateKey(strongBox = true)
-        } catch (_: StrongBoxUnavailableException) {
+        } catch (_: ProviderException) {
+            // Also StrongBoxUnavailableException; some StrongBox chips fail with a plain ProviderException (Review STORAGE-5).
             generateKey(strongBox = false)
         }
     }

@@ -38,6 +38,8 @@ class Token(dir: File, private val vault: Vault) {
                     null
                 } catch (e: Exception) {
                     Log.w(TAG, "Token unreadable: ${e.javaClass.simpleName}")
+                    // Settings asks for a new token. The file stays: the error can be temporary (Review STORAGE-4).
+                    _isSet.value = false
                     null
                 }
                 // A refusal of an older token (the process stopped in [set]) does not count.

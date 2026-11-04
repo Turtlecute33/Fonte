@@ -73,6 +73,8 @@ class LinksTest {
 
     @Test fun unknownHostNeedsProbe() {
         assertEquals(Links.Parsed.Probe("git.example.org", listOf("team", "app", "releases")), Links.parse("https://git.example.org/team/app/releases"))
+        // A self-hosted forge keeps "www." (Review NETWORK-6).
+        assertEquals(Links.Parsed.Probe("www.example.org", listOf("owner", "app")), Links.parse("https://www.example.org/owner/app"))
         assertNull(Links.parse("no link here"))
         assertNull(Links.parse("https://example.org/"))
     }

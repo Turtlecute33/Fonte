@@ -9,8 +9,11 @@ object Versions {
         val latest = app.latest ?: return false
         // F-Droid repos give version codes: an exact answer.
         latest.code?.let { return code < it }
-        // Installed through Fonte and not changed since: the release tag is exact.
-        if (app.installedTag != null && app.installedCode == code) return latest.tag != app.installedTag
+        // Installed through Fonte and not changed since: the release tag is exact. A release of an older branch is no
+        // update (Review SOURCES-2).
+        if (app.installedTag != null && app.installedCode == code) {
+            return latest.tag != app.installedTag && compare(latest.version, fromTag(app.installedTag)) >= 0
+        }
         return compare(latest.version, name) > 0
     }
 

@@ -24,10 +24,14 @@ import java.util.jar.JarFile
 class RepoIndex(http: Lazy<Http>, private val dir: File) {
     private val http: Http by http
     private val locks = ConcurrentHashMap<String, Mutex>()
+    private val entries = ConcurrentHashMap<String, Pair<Long, Index>>()
 
     class Index(val name: String, val sha256: String, val size: Long)
 
-    /** One APK of a package. [beta]: in a release channel, such as "Beta". [abis]: empty when it has no native code. */
+    /**
+     * One APK of a package. [beta]: in a release channel, such as "Beta". [abis]: empty when it has no native code.
+     * [minSdk]: 0 when the index does not tell it.
+     */
     class Version(
         val name: String,
         val code: Long,
@@ -37,6 +41,7 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
         val added: Long?,
         val abis: List<String>,
         val beta: Boolean,
+        val minSdk: Int,
     )
 
     /** The SHA-256 digests of [pkg]'s APKs in the signed index of the [kind] repo. [progress] follows the index download. */
@@ -46,8 +51,20 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
         return read(address, index, kind.label, progress) { file -> versions(file, pkg).mapTo(HashSet()) { it.sha256 } }
     }
 
-    /** Downloads entry.jar of the repo at [address], checks it with [cert], and returns the index that it names. */
+    /**
+     * The index that entry.jar of the repo at [address] names, checked with [cert]. The checks of one repo share one
+     * result for 60 s: one download for all its apps (review PERF-3). The key has [cert], so a result that one key
+     * verified is never given for another key.
+     */
     suspend fun entry(address: String, cert: String, label: String): Index {
+        val key = "e$address $cert"
+        return locks.computeIfAbsent(key) { Mutex() }.withLock {
+            entries[key]?.takeIf { System.nanoTime() - it.first < ENTRY_TTL_NS }?.second
+                ?: fetchEntry(address, cert, label).also { entries[key] = System.nanoTime() to it }
+        }
+    }
+
+    private suspend fun fetchEntry(address: String, cert: String, label: String): Index {
         val r = http.get("$address/entry.jar", maxBytes = 1 shl 20)
         if (r.code != 200) throw IOException("$label index: HTTP ${r.code}")
         dir.mkdirs()
@@ -103,6 +120,7 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             SourceKind.Izzy to "3bf0d6abfeae2f401707b6d966be743bf0eee49c2561b9ba39073711f628937a",
         )
         private const val MAX_INDEX = 512L shl 20
+        private const val ENTRY_TTL_NS = 60_000_000_000L
         private const val MAX_NAME = 100
         private val NAME = Regex("""^/[A-Za-z0-9._-]+\.json$""")
         private val APK = Regex("""^/[A-Za-z0-9._+~-]+\.apk$""")
@@ -116,8 +134,11 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             val e = j.getJarEntry("entry.json") ?: throw IOException("No entry.json in entry.jar")
             val bytes = j.getInputStream(e).use { it.readBytes() }
             // Known only after the whole entry is read; null when the entry is not signed.
-            val signers = e.certificates?.map { Packages.sha256(it.encoded) }.orEmpty()
-            if (cert !in signers) throw SecurityException("entry.jar is not signed with the repo key")
+            // Exactly one signer with a path of one certificate, as the F-Droid client requires: the platform builds
+            // a path only from the names in the certificates, so a forged path can carry the repo certificate (review INSTALL-1).
+            val signer = e.codeSigners?.singleOrNull()?.signerCertPath?.certificates?.singleOrNull()
+                ?: throw SecurityException("entry.jar must have one signer with one certificate")
+            if (Packages.sha256(signer.encoded) != cert) throw SecurityException("entry.jar is not signed with the repo key")
             val o = JSONObject(bytes.decodeToString()).getJSONObject("index")
             val index = Index(o.getString("name"), o.getString("sha256").lowercase(), o.getLong("size"))
             if (!NAME.matches(index.name) || index.sha256.length != 64 || index.size !in 1..MAX_INDEX) {
@@ -175,6 +196,7 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             var added: Long? = null
             var abis = emptyList<String>()
             var beta = false
+            var minSdk = 0
             fields { key ->
                 when (key) {
                     "added" -> added = nextLong()
@@ -191,6 +213,7 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
                             "versionName" -> name = nextString()
                             "versionCode" -> code = nextLong()
                             "nativecode" -> abis = strings()
+                            "usesSdk" -> fields { u -> if (u == "minSdkVersion") minSdk = nextInt() else skipValue() }
                             else -> skipValue()
                         }
                     }
@@ -198,7 +221,7 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
                     else -> skipValue()
                 }
             }
-            return if (code > 0 && APK.matches(path) && SHA256.matches(sha256)) Version(name, code, path, sha256, size, added, abis, beta) else null
+            return if (code > 0 && APK.matches(path) && SHA256.matches(sha256)) Version(name, code, path, sha256, size, added, abis, beta, minSdk) else null
         }
 
         /** A localized text: en-US, then en, then the first one. */

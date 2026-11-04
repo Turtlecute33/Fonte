@@ -41,6 +41,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URI
 import java.nio.channels.Channels
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
 /**
@@ -103,12 +104,15 @@ class Installer(
     private val installer get() = context.packageManager.packageInstaller
     private val dir get() = File(context.cacheDir, "apk").apply { mkdirs() }
 
+    /** The current session of each app. 0 while commit() gives up the older ones (review CRITIC-1). */
+    private val sessions = ConcurrentHashMap<String, Int>()
+
     /**
      * Installs from the UI, in a [DownloadJob] when possible: then the download goes on when the user leaves Fonte.
-     * A second tap while a task runs does nothing.
+     * A second tap while a task runs does nothing. A background install that waits gives way (review CRITIC-3).
      */
     fun start(appId: String) {
-        if (appId in _tasks.value) return
+        if (_tasks.value[appId].let { it != null && it !is Task.Waiting }) return
         val size = store.app(appId)?.latest?.assets?.firstOrNull()?.size ?: 0
         if (!DownloadJob.schedule(context, appId, size)) scope.launch { install(appId, background = false) }
     }
@@ -119,7 +123,7 @@ class Installer(
      */
     suspend fun install(appId: String, background: Boolean): Boolean {
         synchronized(_tasks) {
-            if (appId in _tasks.value) return true
+            if (_tasks.value[appId].let { it != null && (background || it !is Task.Waiting) }) return true
             _tasks.update { it + (appId to Task.Downloading(0, 0)) }
         }
         val file = File(dir, "${Packages.sha256(appId.toByteArray()).take(16)}.apk")
@@ -145,7 +149,7 @@ class Installer(
     private suspend fun run(appId: String, file: File, background: Boolean): Boolean {
         val app = store.app(appId) ?: return false
         val release = app.latest ?: throw IOException("No release to install")
-        val archive = fetch(appId, release, file)
+        val archive = fetch(appId, release, file, background)
 
         val pkg = archive.packageName
         val installed = packages.info(pkg)
@@ -156,7 +160,10 @@ class Installer(
             digests
         }
         val newPin = when (decision) {
-            is Gate.Decision.Refuse -> throw IOException(decision.reason)
+            is Gate.Decision.Refuse -> {
+                if (background) refuse(appId, release.tag)
+                throw IOException(decision.reason)
+            }
             is Gate.Decision.UpToDate -> {
                 // Remember the release, so that it does not count as an update again.
                 val label = packages.label(pkg)
@@ -180,10 +187,12 @@ class Installer(
         return true
     }
 
-    /** Downloads the first candidate APK that fits this device and reads it. */
-    private suspend fun fetch(appId: String, release: Release, file: File): Archive {
-        val candidates = if (release.assets.size > 1 && release.code != null) byAbi(release.assets) else release.assets.take(1)
-        var lastError: IOException? = null
+    /**
+     * Downloads the first candidate APK that fits this device and reads it. Code hosts: the first [MAX_TRIES] ranked
+     * APKs, so that a hostile release cannot cause many downloads (review SOURCES-10).
+     */
+    private suspend fun fetch(appId: String, release: Release, file: File, background: Boolean): Archive {
+        val candidates = if (release.assets.size > 1 && release.code != null) byAbi(release.assets) else release.assets.take(MAX_TRIES)
         for (asset in candidates) {
             // The API URL needs the token; it works for private repositories, the browser URL does not.
             val api = asset.api?.takeIf { runCatching { URI(it).host }.getOrNull() == GITHUB_API }
@@ -200,10 +209,14 @@ class Installer(
             _tasks.update { it + (appId to Task.Installing) }
             val archive = read(file, d.sha256) ?: throw IOException("Not a valid signed APK")
             if (fits(file)) return archive
-            lastError = IOException("No build for this device's processor (${Build.SUPPORTED_ABIS.first()})")
         }
-        throw lastError ?: IOException("No APK to install")
+        if (release.assets.isEmpty()) throw IOException("No APK to install")
+        if (background) refuse(appId, release.tag)
+        throw IOException("No build for this device's processor (${Build.SUPPORTED_ABIS.first()})")
     }
+
+    /** Background runs do not download [tag] again; a manual install still can (review CRITIC-2). */
+    private fun refuse(appId: String, tag: String?) = store.updateApp(appId) { it.copy(refusedTag = tag) }
 
     /**
      * A download callback that sets [appId]'s task to [task] once per percent (or per MB without a size): the list
@@ -223,7 +236,8 @@ class Installer(
 
     /**
      * F-Droid lists one version code per ABI build. Reads the end of each file (a few hundred KB) to see which ABIs it
-     * carries, and orders the builds: this device's main ABI, then no native code, then other ABIs it runs.
+     * carries, and orders the builds: this device's main ABI, then no native code, then other ABIs it runs. Empty when
+     * each probe shows only other ABIs: then nothing downloads (review INSTALL-3).
      */
     private suspend fun byAbi(assets: List<Asset>): List<Asset> = coroutineScope {
         val abis = Build.SUPPORTED_ABIS.toList()
@@ -245,7 +259,7 @@ class Installer(
                 else -> return@mapNotNull null
             }
             a to rank
-        }.sortedBy { it.second }.map { it.first }.ifEmpty { assets }
+        }.sortedBy { it.second }.map { it.first }
     }
 
     private fun read(file: File, sha256: String): Archive? {
@@ -269,6 +283,7 @@ class Installer(
     private fun commit(file: File, archive: Archive, tag: String, appId: String, pin: String, background: Boolean, waits: Boolean): Int {
         val pi = installer
         // An older session for this app (a background install that still waits) gives way to this one.
+        sessions[appId] = 0
         pi.mySessions.filter { it.appPackageName == archive.packageName }.forEach { runCatching { pi.abandonSession(it.sessionId) } }
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(archive.packageName)
@@ -279,6 +294,7 @@ class Installer(
             setRequestUpdateOwnership(true)
         }
         val id = pi.createSession(params)
+        sessions[appId] = id
         try {
             val sender = statusSender(id, appId, tag, archive.versionCode, pin, background)
             pi.openSession(id).use { session ->
@@ -337,6 +353,7 @@ class Installer(
                 } else {
                     // The session waits for the user's tap on the notification; the list shows the update meanwhile.
                     clear(appId)
+                    refuse(appId, intent.getStringExtra(EXTRA_TAG))
                     notifier.confirm(sessionId, name, confirm)
                 }
             }
@@ -358,6 +375,8 @@ class Installer(
             }
             else -> {
                 notifier.cancelConfirm(sessionId)
+                // An older session that commit() gave up: the task is of the new install.
+                if (sessions[appId].let { it != null && it != sessionId }) return
                 clear(appId)
                 // The user said no, or a background install waited too long: not an error.
                 if (status == PackageInstaller.STATUS_FAILURE_ABORTED || status == PackageInstaller.STATUS_FAILURE_TIMEOUT) return
@@ -409,6 +428,7 @@ class Installer(
     companion object {
         private const val TAG = "FonteInstaller"
         private const val MAX_PARALLEL = 3
+        private const val MAX_TRIES = 3
         private const val MAX_APK = 2L shl 30
         private const val TAIL = 256 shl 10
         private const val WAIT_MS = 24 * 3600_000L

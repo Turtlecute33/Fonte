@@ -121,7 +121,7 @@ object Sources {
     fun fail(r: Http.Response, source: String): Nothing = throw IOException(
         when (r.code) {
             404 -> "Not found on $source"
-            401 -> "$source refused the token"
+            401 -> "$source needs a sign-in, which Fonte does not support"
             403, 429 -> "$source refused the request (HTTP ${r.code})"
             in 500..599 -> "$source is unavailable (HTTP ${r.code})"
             else -> "$source answered HTTP ${r.code}"

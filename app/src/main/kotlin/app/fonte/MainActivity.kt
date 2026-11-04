@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) app.onBackground()
+        app.onBackground()
     }
 
     /** A link shared from another app (a browser) opens the add sheet. Only the text is read. */

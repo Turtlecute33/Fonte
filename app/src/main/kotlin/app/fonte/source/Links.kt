@@ -28,6 +28,7 @@ object Links {
     /** Owner, repository and group names; "." and ".." are no names (they would move the API path). */
     private val NAME = Regex("""^(?!\.\.?$)[A-Za-z0-9_.-]+$""")
     private val REPO_SCHEME = Regex("fdroidrepos://", RegexOption.IGNORE_CASE)
+    private val WWW_HOSTS = setOf("github.com", "gitlab.com", "codeberg.org", "f-droid.org", "fdroid.link")
 
     fun isPackageName(s: String) = PACKAGE.matches(s)
 
@@ -43,7 +44,8 @@ object Links {
         val https = text.replace(REPO_SCHEME, "https://")
         val raw = firstUrl(https) ?: https.trim().takeIf { BARE.containsMatchIn(it) }?.let { "https://$it" } ?: return null
         val uri = runCatching { URI(raw) }.getOrNull() ?: return null
-        val host = uri.host?.lowercase()?.removePrefix("www.") ?: return null
+        // "www." goes only from the known hosts: a self-hosted forge can serve only on www. (Review NETWORK-6).
+        val host = uri.host?.lowercase()?.let { h -> h.removePrefix("www.").takeIf { it in WWW_HOSTS } ?: h } ?: return null
         val segments = (uri.rawPath ?: "").split('/').filter { it.isNotEmpty() }.map { URLDecoder.decode(it, Charsets.UTF_8) }
         // fdroid.link/#<repo link>, the share page of the F-Droid client.
         if (host == "fdroid.link") return uri.fragment?.let { repoLink(it.replace(REPO_SCHEME, "https://")) }

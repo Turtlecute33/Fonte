@@ -100,6 +100,8 @@ data class TrackedApp(
     val checkedAt: Long = 0,
     val error: String? = null,
     val addedAt: Long = 0,
+    /** The release tag that a background install refused or sent to the user: background runs do not download it again. */
+    val refusedTag: String? = null,
 )
 
 data class Settings(

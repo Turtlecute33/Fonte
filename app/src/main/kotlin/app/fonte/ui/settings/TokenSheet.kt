@@ -118,8 +118,10 @@ fun TokenSheet(isSet: Boolean, onDismiss: () -> Unit, onSave: (String?) -> Unit)
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                 trailingIcon = {
                     IconButton(onClick = {
-                        val clip = context.getSystemService(ClipboardManager::class.java).primaryClip
-                        clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()?.trim()?.let { value = it }
+                        // The token does not stay on the clipboard after Paste (Review STORAGE-6).
+                        val cm = context.getSystemService(ClipboardManager::class.java)
+                        cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()?.trim()
+                            ?.let { value = it; if (TOKEN.matches(it)) cm.clearPrimaryClip() }
                     }) { Icon(Icons.Paste, contentDescription = "Paste") }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -127,7 +129,7 @@ fun TokenSheet(isSet: Boolean, onDismiss: () -> Unit, onSave: (String?) -> Unit)
             Spacer(Modifier.height(16.dp))
             Button(
                 onClick = { onSave(value) },
-                enabled = value.isNotEmpty(),
+                enabled = TOKEN.matches(value),
                 shapes = ButtonDefaults.shapes(),
                 modifier = Modifier.fillMaxWidth().height(56.dp),
             ) { Text("Save") }
@@ -163,6 +165,9 @@ private fun Step(number: Int, text: String) {
         )
     }
 }
+
+/** The ghp_, github_pat_ and old 40-hex forms. Stops a wrong paste and line breaks in the header (Review NETWORK-4). */
+private val TOKEN = Regex("[A-Za-z0-9_]{20,255}")
 
 private val PUBLIC_STEPS = listOf(
     "Tap *Create token on GitHub* and sign in. The name and the expiry (one year) are set.",

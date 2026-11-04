@@ -1,5 +1,6 @@
 package app.fonte.source
 
+import android.os.Build
 import app.fonte.data.Asset
 import app.fonte.data.Release
 import app.fonte.data.TrackedApp
@@ -18,15 +19,16 @@ object Repo : SourceApi {
         val index = ctx.index.entry(s.repoAddress, key, s.host)
         if (index.sha256 == Sources.etagFor(app)) return Check.Same
         val versions = ctx.index.read(s.repoAddress, index, s.host) { RepoIndex.versions(it, pkg) }
-        return Check.Found(pick(versions, app.prerelease, ctx.abis, s.repoAddress), index.sha256)
+        return Check.Found(pick(versions, app.prerelease, ctx.abis, s.repoAddress, Build.VERSION.SDK_INT), index.sha256)
     }
 
     /**
-     * The highest version code with no native code or native code for [abis], as the F-Droid client picks it. A
-     * version in a release channel ("Beta") counts only with pre-releases on.
+     * The highest version code with no native code or native code for [abis], and a minimum SDK of [sdk] or lower, as
+     * the F-Droid client picks it. A version in a release channel ("Beta") counts only with pre-releases on.
      */
-    fun pick(versions: List<RepoIndex.Version>, prerelease: Boolean, abis: List<String>, address: String): Release? {
-        val v = versions.filter { (prerelease || !it.beta) && (it.abis.isEmpty() || it.abis.any(abis::contains)) }.maxByOrNull { it.code }
+    fun pick(versions: List<RepoIndex.Version>, prerelease: Boolean, abis: List<String>, address: String, sdk: Int): Release? {
+        val v = versions.filter { (prerelease || !it.beta) && (it.abis.isEmpty() || it.abis.any(abis::contains)) && it.minSdk <= sdk }
+            .maxByOrNull { it.code }
             ?: return null
         return Release(
             tag = v.name,

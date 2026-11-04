@@ -34,4 +34,4 @@ internal suspend fun importFile(context: Context, uri: Uri, app: FonteApp): Stri
     Library.userText(e, "Import failed")
 }
 
-private const val MAX_IMPORT = 16 shl 20
+private const val MAX_IMPORT = 2 shl 20

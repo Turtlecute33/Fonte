@@ -2,15 +2,23 @@ package app.fonte
 
 import app.fonte.data.SourceKind
 import app.fonte.install.RepoIndex
+import app.fonte.install.Packages
 import app.fonte.source.Links
+import app.fonte.source.Repo
 import org.junit.Test
 import java.io.File
+import java.util.jar.JarFile
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
-/** entry.jar files as F-Droid and IzzyOnDroid published them in October 2026, and the Guardian Project in November 2026. */
+/**
+ * entry.jar files as F-Droid and IzzyOnDroid published them in October 2026, and the Guardian Project in November 2026.
+ * forged-entry.jar is synthetic: an attacker key signed it, with a certificate whose issuer name is the subject name of
+ * a test repo certificate, and the block also carries that repo certificate (review INSTALL-1).
+ */
 class RepoIndexTest {
     private fun fixture(name: String) = File(javaClass.classLoader!!.getResource(name)!!.toURI())
 
@@ -54,5 +62,30 @@ class RepoIndexTest {
         } finally {
             changed.delete()
         }
+    }
+
+    @Test fun refusesAForgedCertificatePath() {
+        val jar = fixture("forged-entry.jar")
+        // The repo certificate is in the entry's certificates: a check of "is it one of them" accepts this jar.
+        val all = JarFile(jar, true).use { j ->
+            val e = j.getJarEntry("entry.json")
+            j.getInputStream(e).use { it.readBytes() }
+            e.certificates.map { Packages.sha256(it.encoded) }
+        }
+        assertTrue(FORGED_REPO_CERT in all)
+        assertFailsWith<SecurityException> { RepoIndex.readEntry(jar, FORGED_REPO_CERT) }
+    }
+
+    @Test fun pickLeavesOutVersionsForANewerAndroid() {
+        val sha = "a".repeat(64)
+        fun v(code: Long, minSdk: Int) = RepoIndex.Version("1.$code", code, "/app_$code.apk", sha, 5, 7L, emptyList(), false, minSdk)
+        val versions = listOf(v(2, 26), v(3, 36))
+        assertEquals(2, Repo.pick(versions, prerelease = false, listOf("arm64-v8a"), "https://r", sdk = 35)?.code)
+        assertEquals(3, Repo.pick(versions, prerelease = false, listOf("arm64-v8a"), "https://r", sdk = 36)?.code)
+    }
+
+    private companion object {
+        /** The SHA-256 of the synthetic test repo certificate ("CN=Example Test Repo, O=Example, C=XX"). */
+        const val FORGED_REPO_CERT = "c0a7bf510df54e1fa8f66d86edffb3ea662d90d458b1a2b40932ea4352838325"
     }
 }

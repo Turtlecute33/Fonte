@@ -63,5 +63,8 @@ class VersionsTest {
         // Installed through Fonte: the tag decides while the version code is the one Fonte installed.
         assertFalse(Versions.hasUpdate(app("build-77", installedTag = "build-77", installedCode = 5), 5, "77"))
         assertTrue(Versions.hasUpdate(app("build-78", installedTag = "build-77", installedCode = 5), 5, "77"))
+        // Review SOURCES-2: a newer release of an older branch is no update.
+        assertFalse(Versions.hasUpdate(app("v1.9.5", installedTag = "v2.0.0", installedCode = 5), 5, "2.0.0"))
+        assertTrue(Versions.hasUpdate(app("v2.0.1", installedTag = "v2.0.0", installedCode = 5), 5, "2.0.0"))
     }
 }
