@@ -6,6 +6,7 @@ import android.net.http.HttpException
 import android.net.http.NetworkException
 import android.net.http.UrlRequest
 import android.net.http.UrlResponseInfo
+import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
@@ -38,9 +39,19 @@ interface HttpGet {
  * multiplexing and Brotli, with no library and no native code in the APK. One engine for the whole app, so the
  * checks of many apps on one host share one connection. No HTTP cache, no cookies, a User-Agent with no device data.
  * Only https URLs, also after redirects. An Authorization header never follows a redirect to another host.
+ *
+ * After [IDLE_MS] with no request, deep sleep included, the next request gets a new engine. A frozen app keeps its
+ * connections overnight, but a VPN or NAT can drop them; the old engine then waits about 10 s for a ping on each
+ * dead HTTP/2 connection before it opens a new one.
  */
-class Http(context: Context) : HttpGet {
-    private val engine: HttpEngine = HttpEngine.Builder(context)
+class Http(private val context: Context) : HttpGet {
+    private val lock = Any()
+    private var engine: HttpEngine = build()
+    private var active = 0
+    private var lastUse = SystemClock.elapsedRealtime()
+    private val executor = Dispatchers.IO.asExecutor()
+
+    private fun build(): HttpEngine = HttpEngine.Builder(context)
         // Only connection data (HTTP/3 support of hosts), so that QUIC works from the first request after a restart.
         .setStoragePath(File(context.noBackupFilesDir, "http").apply { mkdirs() }.path)
         .setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISABLED, 0)
@@ -49,7 +60,24 @@ class Http(context: Context) : HttpGet {
         .setEnableBrotli(true)
         .setUserAgent(USER_AGENT)
         .build()
-    private val executor = Dispatchers.IO.asExecutor()
+
+    /** The engine for one request; [release] after it. A new engine after a long idle time (see the class text). */
+    private fun acquire(): HttpEngine = synchronized(lock) {
+        val now = SystemClock.elapsedRealtime()
+        // shutdown() refuses while a request runs: then keep the old engine (two engines cannot share the storage path).
+        if (active == 0 && now - lastUse > IDLE_MS && runCatching { engine.shutdown() }.isSuccess) {
+            Log.d(TAG, "New engine after ${(now - lastUse) / 1000} s idle")
+            engine = build()
+        }
+        active++
+        lastUse = now
+        engine
+    }
+
+    private fun release() = synchronized(lock) {
+        active--
+        lastUse = SystemClock.elapsedRealtime()
+    }
 
     class Response(val code: Int, val url: String, private val headers: Map<String, List<String>>, val body: ByteArray) {
         fun header(name: String): String? = headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value?.firstOrNull()
@@ -161,16 +189,23 @@ class Http(context: Context) : HttpGet {
         headers: Map<String, String>,
         onStart: (UrlResponseInfo) -> Unit,
         onData: (ByteBuffer) -> Unit,
-    ): Outcome = suspendCancellableCoroutine { cont ->
-        val credentials = headers.keys.any { it.equals(AUTHORIZATION, ignoreCase = true) }
-        val callback = Callback(cont, URI(url).host, credentials, onStart, onData)
-        val request = engine.newUrlRequestBuilder(url, executor, callback)
-            .setHttpMethod("GET")
-            .setCacheDisabled(true)
-            .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
-            .build()
-        cont.invokeOnCancellation { request.cancel() }
-        request.start()
+    ): Outcome {
+        val engine = acquire()
+        try {
+            return suspendCancellableCoroutine { cont ->
+                val credentials = headers.keys.any { it.equals(AUTHORIZATION, ignoreCase = true) }
+                val callback = Callback(cont, URI(url).host, credentials, onStart, onData)
+                val request = engine.newUrlRequestBuilder(url, executor, callback)
+                    .setHttpMethod("GET")
+                    .setCacheDisabled(true)
+                    .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
+                    .build()
+                cont.invokeOnCancellation { request.cancel() }
+                request.start()
+            }
+        } finally {
+            release()
+        }
     }
 
     /** What to do with a redirect ([nextHop]). */
@@ -261,6 +296,7 @@ class Http(context: Context) : HttpGet {
         private const val BUFFER = 256 shl 10
         private const val TIMEOUT_MS = 30_000L
         private const val STALL_MS = 45_000L
+        private const val IDLE_MS = 5 * 60_000L
 
         /** Only https; a request with [credentials] that goes to another host starts again without them. */
         fun nextHop(host: String, location: String, credentials: Boolean): Hop {
