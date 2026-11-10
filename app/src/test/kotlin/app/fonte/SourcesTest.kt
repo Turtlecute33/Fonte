@@ -165,6 +165,9 @@ class SourcesTest {
             ),
             raws.single().assets.map { it.url },
         )
+        // A link title that is no file name, and a URL with a bad "%" escape: the name stays as it is.
+        val odd = """[{"tag_name":"1","assets":{"links":[{"name":"Android","url":"https://h.example/dl/app-100%.apk"}]}}]"""
+        assertEquals("app-100%.apk", GitLab.parse(odd, "h.example") { 1L }.single().assets.single().name)
     }
 
     @Test fun fdroidSuggestedAndAbiGroups() {

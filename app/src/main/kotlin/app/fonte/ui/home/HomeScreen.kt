@@ -272,13 +272,13 @@ private fun AppItem(row: Row, index: Int, count: Int, onOpen: () -> Unit, modifi
     val subtitle = when {
         task != null -> taskText(context, task)
         // The last error shows before the update, so a refused install stays visible (Review UIUX-1).
-        app.error != null -> app.error
+        app.problem != null -> app.problem
         row.update && installed != null && latest != null -> "${installed.versionName} → ${latest.version}"
         installed != null -> installed.versionName
         latest != null -> latest.version
         else -> "Not checked yet"
     }
-    val failed = task == null && app.error != null
+    val failed = task == null && app.problem != null
     GroupItem(index, count, modifier, onClick = onOpen) {
         ItemRow(
             title = app.name,

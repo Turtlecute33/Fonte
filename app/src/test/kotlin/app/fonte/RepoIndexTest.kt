@@ -64,6 +64,23 @@ class RepoIndexTest {
         }
     }
 
+    @Test fun refusesAnEntryThatGrowsTooLarge() {
+        // 2 MiB of zeros are about 2 KB in the jar. The read stops at its limit, before the signature check.
+        val bomb = File.createTempFile("entry", ".jar")
+        try {
+            ZipOutputStream(bomb.outputStream()).use { out ->
+                out.putNextEntry(java.util.zip.ZipEntry("entry.json"))
+                out.write(ByteArray(2 shl 20))
+                out.closeEntry()
+            }
+            assertTrue(bomb.length() < 64 shl 10)
+            val e = assertFailsWith<java.io.IOException> { RepoIndex.readEntry(bomb, RepoIndex.REPO_CERTS.getValue(SourceKind.FDroid)) }
+            assertEquals("entry.json is too large", e.message)
+        } finally {
+            bomb.delete()
+        }
+    }
+
     @Test fun refusesAForgedCertificatePath() {
         val jar = fixture("forged-entry.jar")
         // The repo certificate is in the entry's certificates: a check of "is it one of them" accepts this jar.

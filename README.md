@@ -95,6 +95,7 @@ And also:
   the last answer of each source, so that a source with no change answers "not modified". A source
   can use the ETag to see that two checks come from the same phone.
 - The clipboard is read only when you tap Paste.
+- Notifications do not show on a locked phone that has a screen lock.
 - No backups: the app list and settings stay out of cloud backup and device transfer.
 - Fonte reads the installed version of each app in your list (Android permission "query all
   packages"). This information stays on the phone.

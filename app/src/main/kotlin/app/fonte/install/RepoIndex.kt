@@ -65,7 +65,7 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
     }
 
     private suspend fun fetchEntry(address: String, cert: String, label: String): Index {
-        val r = http.get("$address/entry.jar", maxBytes = 1 shl 20)
+        val r = http.get("$address/entry.jar", maxBytes = MAX_JAR)
         if (r.code != 200) throw IOException("$label index: HTTP ${r.code}")
         dir.mkdirs()
         // A file for each call: the checks of one repo run at the same time.
@@ -120,6 +120,13 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             SourceKind.Izzy to "3bf0d6abfeae2f401707b6d966be743bf0eee49c2561b9ba39073711f628937a",
         )
         private const val MAX_INDEX = 512L shl 20
+
+        /**
+         * entry.jar is about 3 KB, and entry.json in it is smaller. The limits stop a compressed file that grows to
+         * fill the memory: the jar is read before its signature is known.
+         */
+        private const val MAX_JAR = 64 shl 10
+        private const val MAX_ENTRY = 1 shl 20
         private const val ENTRY_TTL_NS = 60_000_000_000L
         private const val MAX_NAME = 100
         private val NAME = Regex("""^/[A-Za-z0-9._-]+\.json$""")
@@ -132,7 +139,9 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
          */
         fun readEntry(jar: File, cert: String): Index = JarFile(jar, true).use { j ->
             val e = j.getJarEntry("entry.json") ?: throw IOException("No entry.json in entry.jar")
-            val bytes = j.getInputStream(e).use { it.readBytes() }
+            // A read to the end of the entry, so that the signature is checked; one byte more shows an entry that is too large.
+            val bytes = j.getInputStream(e).use { it.readNBytes(MAX_ENTRY + 1) }
+            if (bytes.size > MAX_ENTRY) throw IOException("entry.json is too large")
             // Known only after the whole entry is read; null when the entry is not signed.
             // Exactly one signer with a path of one certificate, as the F-Droid client requires: the platform builds
             // a path only from the names in the certificates, so a forged path can carry the repo certificate (review INSTALL-1).
@@ -141,7 +150,7 @@ class RepoIndex(http: Lazy<Http>, private val dir: File) {
             if (Packages.sha256(signer.encoded) != cert) throw SecurityException("entry.jar is not signed with the repo key")
             val o = JSONObject(bytes.decodeToString()).getJSONObject("index")
             val index = Index(o.getString("name"), o.getString("sha256").lowercase(), o.getLong("size"))
-            if (!NAME.matches(index.name) || index.sha256.length != 64 || index.size !in 1..MAX_INDEX) {
+            if (!NAME.matches(index.name) || !SHA256.matches(index.sha256) || index.size !in 1..MAX_INDEX) {
                 throw IOException("entry.jar names no valid index")
             }
             index

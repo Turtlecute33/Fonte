@@ -76,7 +76,9 @@ class DownloadJob : JobService() {
             if (context.getSystemService(ConnectivityManager::class.java).activeNetwork == null) return false
             val js = context.getSystemService(JobScheduler::class.java).forNamespace(NAMESPACE)
             val id = appId.hashCode()
-            if (js.getPendingJob(id) != null) return true
+            // A job that runs stays. A job that waits (the system stopped it and runs it again later) gives way to a
+            // new one: the user tapped, so the install starts now.
+            if (js.getPendingJobReason(id) == JobScheduler.PENDING_JOB_REASON_EXECUTING) return true
             val info = JobInfo.Builder(id, ComponentName(context, DownloadJob::class.java))
                 .setUserInitiated(true)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)

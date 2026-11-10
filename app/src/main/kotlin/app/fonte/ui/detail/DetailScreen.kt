@@ -108,7 +108,7 @@ fun DetailScreen(id: String, nav: Navigator) {
         ) {
             item { Header(row) }
             item { Actions(row) }
-            t.error?.let { error ->
+            t.problem?.let { error ->
                 item {
                     GroupItem(0, 1, Modifier.padding(top = 16.dp)) {
                         ItemRow("Last problem", error, subtitleColor = MaterialTheme.colorScheme.error, subtitleLines = 4)

@@ -77,5 +77,8 @@ class LinksTest {
         assertEquals(Links.Parsed.Probe("www.example.org", listOf("owner", "app")), Links.parse("https://www.example.org/owner/app"))
         assertNull(Links.parse("no link here"))
         assertNull(Links.parse("https://example.org/"))
+        // A port or a user: the source would keep only the host, and its requests would go to another server.
+        assertNull(Links.parse("https://git.example.org:3000/team/app"))
+        assertNull(Links.parse("https://github.com@evil.example/owner/app"))
     }
 }

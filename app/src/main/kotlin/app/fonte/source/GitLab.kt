@@ -78,5 +78,9 @@ object GitLab : SourceApi {
         JSONObject(r.text).optLong("id").takeIf { it > 0 }?.also { projectIds[app.id] = it } ?: throw IOException("${s.label} sent no project ID")
     }
 
-    private fun fileName(url: String) = URLDecoder.decode(url.substringBefore('?').substringAfterLast('/'), Charsets.UTF_8)
+    /** The last part of the path. A name with a bad "%" escape stays as it is: it must not stop the check. */
+    private fun fileName(url: String): String {
+        val name = url.substringBefore('?').substringAfterLast('/')
+        return runCatching { URLDecoder.decode(name, Charsets.UTF_8) }.getOrDefault(name)
+    }
 }

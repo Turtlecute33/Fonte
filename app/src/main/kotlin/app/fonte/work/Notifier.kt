@@ -12,7 +12,8 @@ import app.fonte.install.Installer
 
 /**
  * Five quiet channels: available updates, install prompts, installed updates, downloads, a refused GitHub token.
- * Nothing is shown on the lock screen.
+ * Nothing is shown on a secure lock screen: each notification is secret. An app cannot set this on a channel (the
+ * system overwrites that field), so [builder] sets it.
  */
 class Notifier(private val context: Context) {
     private val nm = context.getSystemService(NotificationManager::class.java)
@@ -26,7 +27,7 @@ class Notifier(private val context: Context) {
                 NotificationChannel(INSTALLED, "Installed updates", NotificationManager.IMPORTANCE_MIN),
                 NotificationChannel(DOWNLOADS, "Downloads", NotificationManager.IMPORTANCE_LOW),
                 NotificationChannel(TOKEN, "GitHub token", NotificationManager.IMPORTANCE_LOW),
-            ).onEach { it.lockscreenVisibility = Notification.VISIBILITY_PRIVATE },
+            ),
         )
     }
 
@@ -88,6 +89,7 @@ class Notifier(private val context: Context) {
     }
 
     private fun builder(channel: String) = Notification.Builder(context, channel).setSmallIcon(R.drawable.ic_notification)
+        .setVisibility(Notification.VISIBILITY_SECRET)
 
     private fun openApp() = PendingIntent.getActivity(
         context,

@@ -119,7 +119,7 @@ class Installer(
 
     /**
      * Downloads, checks and commits the latest release of [appId]. True when the install was committed or nothing
-     * was needed; false on an error (stored in the app's error field).
+     * was needed; false on an error (stored in the app's install error).
      */
     suspend fun install(appId: String, background: Boolean): Boolean {
         synchronized(_tasks) {
@@ -136,7 +136,7 @@ class Installer(
         } catch (e: Exception) {
             Log.w(TAG, "Install failed: ${e.javaClass.simpleName}")
             val text = Library.userText(e, "Install failed")
-            store.updateApp(appId) { it.copy(error = text) }
+            store.updateApp(appId) { it.copy(installError = text) }
             if (!background) messages.tryEmit("${store.app(appId)?.name ?: "App"}: $text")
             false
         } finally {
@@ -149,7 +149,7 @@ class Installer(
     private suspend fun run(appId: String, file: File, background: Boolean): Boolean {
         val app = store.app(appId) ?: return false
         val release = app.latest ?: throw IOException("No release to install")
-        val archive = fetch(appId, release, file, background)
+        val archive = fetch(appId, release, file)
 
         val pkg = archive.packageName
         val installed = packages.info(pkg)
@@ -161,7 +161,7 @@ class Installer(
         }
         val newPin = when (decision) {
             is Gate.Decision.Refuse -> {
-                if (background) refuse(appId, release.tag)
+                refuse(appId, release.tag)
                 throw IOException(decision.reason)
             }
             is Gate.Decision.UpToDate -> {
@@ -191,7 +191,7 @@ class Installer(
      * Downloads the first candidate APK that fits this device and reads it. Code hosts: the first [MAX_TRIES] ranked
      * APKs, so that a hostile release cannot cause many downloads (review SOURCES-10).
      */
-    private suspend fun fetch(appId: String, release: Release, file: File, background: Boolean): Archive {
+    private suspend fun fetch(appId: String, release: Release, file: File): Archive {
         val candidates = if (release.assets.size > 1 && release.code != null) byAbi(release.assets) else release.assets.take(MAX_TRIES)
         for (asset in candidates) {
             // The API URL needs the token; it works for private repositories, the browser URL does not.
@@ -211,11 +211,14 @@ class Installer(
             if (fits(file)) return archive
         }
         if (release.assets.isEmpty()) throw IOException("No APK to install")
-        if (background) refuse(appId, release.tag)
+        refuse(appId, release.tag)
         throw IOException("No build for this device's processor (${Build.SUPPORTED_ABIS.first()})")
     }
 
-    /** Background runs do not download [tag] again; a manual install still can (review CRITIC-2). */
+    /**
+     * A new download of [tag] would fail in the same way. Background runs do not download it again (review CRITIC-2);
+     * a manual install still can. The reason stays on the entry until then.
+     */
     private fun refuse(appId: String, tag: String?) = store.updateApp(appId) { it.copy(refusedTag = tag) }
 
     /**
@@ -381,7 +384,10 @@ class Installer(
                 // The user said no, or a background install waited too long: not an error.
                 if (status == PackageInstaller.STATUS_FAILURE_ABORTED || status == PackageInstaller.STATUS_FAILURE_TIMEOUT) return
                 val text = failure(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE))
-                store.updateApp(appId) { it.copy(error = text) }
+                // The system refused the APK: background runs do not download this release again, and their
+                // notification names the app.
+                val tag = intent.getStringExtra(EXTRA_TAG)
+                store.updateApp(appId) { it.copy(installError = text, refusedTag = tag) }
                 if (visible) messages.tryEmit("$name: $text")
             }
         }
@@ -396,6 +402,7 @@ class Installer(
                 cert = cert ?: it.cert,
                 name = label ?: it.name,
                 error = null,
+                installError = null,
             )
         }
 

@@ -100,9 +100,17 @@ data class TrackedApp(
     val checkedAt: Long = 0,
     val error: String? = null,
     val addedAt: Long = 0,
-    /** The release tag that a background install refused or sent to the user: background runs do not download it again. */
+    /** The release tag that an install refused or sent to the user: background runs do not download it again. */
     val refusedTag: String? = null,
-)
+    /**
+     * Why the last install failed. A check removes it, but not while the latest release is the refused one
+     * ([refusedTag]): then a new release, an install or a pin reset removes it.
+     */
+    val installError: String? = null,
+) {
+    /** The text to show on the entry: a failed install first, then a failed check. */
+    val problem: String? get() = installError ?: error
+}
 
 data class Settings(
     val background: Boolean = true,

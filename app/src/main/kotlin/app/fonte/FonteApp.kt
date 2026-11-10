@@ -164,7 +164,12 @@ class FonteApp : Application() {
         scope.launch {
             // After the start: its read of the installed packages is new, so this one is skipped.
             ready.first { it }
-            withContext(Dispatchers.IO) { packages.refreshIfOld(trackedPackages()) }
+            val online = withContext(Dispatchers.IO) {
+                packages.refreshIfOld(trackedPackages())
+                getSystemService(ConnectivityManager::class.java).activeNetwork != null
+            }
+            // With no network, a check puts the same error on each app and counts as a new check.
+            if (!online) return@launch
             val now = System.currentTimeMillis()
             val hasToken = token.isSet.value && !token.refused.value
             val skip = { a: TrackedApp -> Library.skipOnForeground(a, hasToken, now) }

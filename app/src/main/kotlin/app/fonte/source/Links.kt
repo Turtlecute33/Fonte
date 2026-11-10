@@ -43,7 +43,8 @@ object Links {
         // The F-Droid client's scheme for repo links. fdroidrepo:// (no TLS) stays out.
         val https = text.replace(REPO_SCHEME, "https://")
         val raw = firstUrl(https) ?: https.trim().takeIf { BARE.containsMatchIn(it) }?.let { "https://$it" } ?: return null
-        val uri = runCatching { URI(raw) }.getOrNull() ?: return null
+        // No port and no user: a source keeps only the host, so its requests would go to another server than the link names.
+        val uri = runCatching { URI(raw) }.getOrNull()?.takeIf { it.port == -1 && it.rawUserInfo == null } ?: return null
         // "www." goes only from the known hosts: a self-hosted forge can serve only on www. (Review NETWORK-6).
         val host = uri.host?.lowercase()?.let { h -> h.removePrefix("www.").takeIf { it in WWW_HOSTS } ?: h } ?: return null
         val segments = (uri.rawPath ?: "").split('/').filter { it.isNotEmpty() }.map { URLDecoder.decode(it, Charsets.UTF_8) }

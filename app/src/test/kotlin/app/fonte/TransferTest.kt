@@ -94,7 +94,7 @@ class TransferTest {
     private val fromRepo = tracked.copy(id = repo.id, source = repo, packageName = "org.example.app")
 
     @Test fun storeRoundTrip() {
-        val d = Data(listOf(tracked, fromRepo), Settings(background = false, intervalHours = 12, autoInstall = false, unmeteredOnly = true))
+        val d = Data(listOf(tracked.copy(installError = "Refused"), fromRepo), Settings(background = false, intervalHours = 12, autoInstall = false, unmeteredOnly = true))
         assertEquals(d, Store.decode(JSONObject(Store.encode(d).toString())))
     }
 

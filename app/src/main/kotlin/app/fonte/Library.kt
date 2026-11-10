@@ -2,6 +2,7 @@ package app.fonte
 
 import android.util.Log
 import androidx.compose.runtime.Immutable
+import app.fonte.data.Release
 import app.fonte.data.Source
 import app.fonte.data.SourceKind
 import app.fonte.data.Store
@@ -59,7 +60,7 @@ class Library(private val store: Store, private val packages: Packages, private 
             val c = Sources.check(app, ctx)
             Log.d(TAG, "Check ${app.id}: ${if (c is Check.Found) c.release?.tag ?: "no APK" else "not modified"}")
             when (c) {
-                Check.Same -> store.updateApp(id) { it.copy(checkedAt = now, error = null) }
+                Check.Same -> store.updateApp(id) { it.copy(checkedAt = now, error = null, installError = installErrorAfter(it, it.latest)) }
                 // Options changed during the check: the release was picked with the old ones (Review SOURCES-4).
                 is Check.Found -> store.updateApp(id) {
                     if (it.prerelease != app.prerelease || it.apkFilter != app.apkFilter) return@updateApp it.copy(checkedAt = now)
@@ -68,6 +69,7 @@ class Library(private val store: Store, private val packages: Packages, private 
                         etag = c.etag.takeIf { c.release != null },
                         checkedAt = now,
                         error = if (c.release == null) NO_APK else null,
+                        installError = installErrorAfter(it, c.release),
                     )
                 }
             }
@@ -207,7 +209,7 @@ class Library(private val store: Store, private val packages: Packages, private 
     fun remove(id: String) = store.update { d -> d.copy(apps = d.apps.filter { it.id != id }) }
 
     /** Forgets the pinned certificate: the next install pins the certificate of the APK it installs. */
-    fun resetPin(id: String) = store.updateApp(id) { it.copy(cert = null, refusedTag = null) }
+    fun resetPin(id: String) = store.updateApp(id) { it.copy(cert = null, refusedTag = null, installError = null) }
 
     companion object {
         private const val TAG = "FonteLibrary"
@@ -227,6 +229,14 @@ class Library(private val store: Store, private val packages: Packages, private 
          */
         fun skipOnForeground(app: TrackedApp, hasToken: Boolean, now: Long): Boolean =
             !hasToken && app.source.kind == SourceKind.GitHub && now - app.checkedAt < GITHUB_FRESH_MS
+
+        /**
+         * The install error of [app] after a check that gave [latest]. An error that a new download can pass (no
+         * network) goes. The reason of a refusal stays while [latest] is the refused release, so that the user can
+         * read it (Review UIUX-1).
+         */
+        fun installErrorAfter(app: TrackedApp, latest: Release?): String? =
+            app.installError.takeIf { latest != null && latest.tag == app.refusedTag }
 
         /** Where Fonte publishes its releases, and the package of the release build. */
         val SELF = Source(SourceKind.GitHub, "github.com", "Turtlecute33/Fonte")

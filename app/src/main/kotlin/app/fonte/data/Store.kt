@@ -133,7 +133,7 @@ class Store(dir: File, private val scope: CoroutineScope) {
             .put("name", name).put("package", packageName).put("prerelease", prerelease).put("filter", apkFilter)
             .put("autoUpdate", autoUpdate).put("cert", cert).put("installedTag", installedTag).put("installedCode", installedCode)
             .put("latest", latest?.json()).put("etag", etag).put("checkedAt", checkedAt).put("error", error).put("addedAt", addedAt)
-            .put("refusedTag", refusedTag)
+            .put("refusedTag", refusedTag).put("installError", installError)
 
         private fun JSONObject.app(): TrackedApp {
             val source = Source(SourceKind.valueOf(getString("kind")), getString("host"), getString("path"), str("key"))
@@ -154,6 +154,7 @@ class Store(dir: File, private val scope: CoroutineScope) {
                 error = str("error"),
                 addedAt = optLong("addedAt"),
                 refusedTag = str("refusedTag"),
+                installError = str("installError"),
             )
         }
 
