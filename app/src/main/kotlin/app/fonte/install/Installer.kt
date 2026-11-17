@@ -81,7 +81,7 @@ class Installer(
         data class Checking(val repo: String, override val done: Long, override val total: Long) : Progress
         data object Installing : Task
 
-        /** Background install: committed, waits until the app is not in use. */
+        /** Background install: written, waits until the app is not in use ([onWait]). */
         data object Waiting : Task
     }
 
@@ -203,11 +203,16 @@ class Installer(
                 _tasks.update { it + (appId to Task.Downloading(0, asset.size)) }
                 http.download(url, file, MAX_APK, headers, progress(appId, asset.size) { done, total -> Task.Downloading(done, total) })
             }
+            // A new download of this release fails in the same way: background runs do not repeat it (review T-M11).
             if (asset.sha256 != null && !asset.sha256.equals(d.sha256, ignoreCase = true)) {
+                refuse(appId, release.tag)
                 throw IOException("Refused: the download does not match the published SHA-256")
             }
             _tasks.update { it + (appId to Task.Installing) }
-            val archive = read(file, d.sha256) ?: throw IOException("Not a valid signed APK")
+            val archive = read(file, d.sha256) ?: run {
+                refuse(appId, release.tag)
+                throw IOException("Not a valid signed APK")
+            }
             if (fits(file)) return archive
         }
         if (release.assets.isEmpty()) throw IOException("No APK to install")
@@ -299,7 +304,6 @@ class Installer(
         val id = pi.createSession(params)
         sessions[appId] = id
         try {
-            val sender = statusSender(id, appId, tag, archive.versionCode, pin, background)
             pi.openSession(id).use { session ->
                 val size = file.length()
                 FileInputStream(file).channel.use { input ->
@@ -311,14 +315,18 @@ class Installer(
                         session.fsync(out)
                     }
                 }
-                if (!waits) session.commit(sender)
+                if (!waits) session.commit(sender(id, null, appId, tag, archive.versionCode, pin, background))
             }
+            // The system holds the callback, so the wait also ends well after this process ends. Not
+            // commitSessionAfterInstallConstraintsAreMet: it waits in this process, and all its waits share one
+            // callback, so the first app that is not in use commits each waiting session (review T-M29).
             if (waits) {
                 val constraints = PackageInstaller.InstallConstraints.Builder()
                     .setAppNotForegroundRequired()
                     .setAppNotInteractingRequired()
                     .build()
-                pi.commitSessionAfterInstallConstraintsAreMet(id, sender, constraints, WAIT_MS)
+                val callback = sender(id, ACTION_WAIT, appId, tag, archive.versionCode, pin, background)
+                pi.waitForInstallConstraints(listOf(archive.packageName), constraints, callback, WAIT_MS)
             }
         } catch (e: Exception) {
             runCatching { pi.abandonSession(id) }
@@ -327,8 +335,14 @@ class Installer(
         return id
     }
 
-    private fun statusSender(sessionId: Int, appId: String, tag: String, code: Long, pin: String, background: Boolean): IntentSender {
+    /**
+     * The callback to [InstallReceiver] for [sessionId]: its result, or with [ACTION_WAIT] the end of the wait for
+     * install constraints. The action makes the two separate PendingIntents.
+     */
+    private fun sender(sessionId: Int, action: String?, appId: String, tag: String, code: Long, pin: String, background: Boolean): IntentSender {
         val intent = Intent(context, InstallReceiver::class.java)
+            .setAction(action)
+            .putExtra(PackageInstaller.EXTRA_SESSION_ID, sessionId)
             .putExtra(EXTRA_APP, appId)
             .putExtra(EXTRA_TAG, tag)
             .putExtra(EXTRA_CODE, code)
@@ -338,8 +352,9 @@ class Installer(
         return PendingIntent.getBroadcast(context, sessionId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE).intentSender
     }
 
-    /** A session result from [InstallReceiver]. */
+    /** A session result, or the end of a wait, from [InstallReceiver]. */
     suspend fun onStatus(intent: Intent) {
+        if (intent.action == ACTION_WAIT) return onWait(intent)
         val appId = intent.getStringExtra(EXTRA_APP) ?: return
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
@@ -393,6 +408,36 @@ class Installer(
         }
     }
 
+    /**
+     * A wait for install constraints ended: commits the session when the app is not in use, is still in the list, and
+     * may still update in the background. A removal or a settings change after the download stops it (review T-M1).
+     * Else the session goes. A session that a newer install gave up ([commit]) is gone already: nothing changes then.
+     */
+    private suspend fun onWait(intent: Intent) {
+        val appId = intent.getStringExtra(EXTRA_APP) ?: return
+        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
+        val met = intent.getParcelableExtra(PackageInstaller.EXTRA_INSTALL_CONSTRAINTS_RESULT, PackageInstaller.InstallConstraintsResult::class.java)
+            ?.areAllConstraintsSatisfied() == true
+        store.awaitLoaded()
+        val app = store.app(appId)
+        val allowed = app != null && app.autoUpdate && store.settings.autoInstall
+        val committed = withContext(Dispatchers.IO) {
+            val pi = installer
+            // Gone: a newer install gave it up, and the task is of that install.
+            if (pi.getSessionInfo(sessionId) == null) return@withContext null
+            val tag = intent.getStringExtra(EXTRA_TAG).orEmpty()
+            val code = intent.getLongExtra(EXTRA_CODE, 0)
+            val pin = intent.getStringExtra(EXTRA_CERT).orEmpty()
+            val ok = met && allowed && runCatching {
+                pi.openSession(sessionId).use { it.commit(sender(sessionId, null, appId, tag, code, pin, background = true)) }
+            }.onFailure { Log.w(TAG, "Commit after the wait failed: ${it.javaClass.simpleName}") }.isSuccess
+            if (!ok) runCatching { pi.abandonSession(sessionId) }
+            ok
+        } ?: return
+        Log.i(TAG, "Wait of session $sessionId ended: met $met, allowed $allowed, committed $committed")
+        if (!committed && _tasks.value[appId] is Task.Waiting) clear(appId)
+    }
+
     private fun record(appId: String, pkg: String?, tag: String?, code: Long?, cert: String?, label: String?) =
         store.updateApp(appId) {
             it.copy(
@@ -440,6 +485,7 @@ class Installer(
         private const val TAIL = 256 shl 10
         private const val WAIT_MS = 24 * 3600_000L
         private const val GITHUB_API = "api.github.com"
+        const val ACTION_WAIT = "app.fonte.action.WAIT"
         const val EXTRA_APP = "app.fonte.extra.APP"
         const val EXTRA_TAG = "app.fonte.extra.TAG"
         const val EXTRA_CODE = "app.fonte.extra.CODE"

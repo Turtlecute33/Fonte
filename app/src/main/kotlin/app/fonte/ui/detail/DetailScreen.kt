@@ -57,7 +57,9 @@ import app.fonte.Library
 import app.fonte.Row
 import app.fonte.app
 import app.fonte.install.Installer
+import app.fonte.source.Apks
 import app.fonte.ui.AppIcon
+import app.fonte.ui.FILTER_ERROR
 import app.fonte.ui.Bar
 import app.fonte.ui.GroupItem
 import app.fonte.ui.Icons
@@ -368,6 +370,7 @@ private fun Security(row: Row, onReset: () -> Unit) {
 @Composable
 private fun FilterDialog(current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var value by rememberSaveable { mutableStateOf(current) }
+    val usable = remember(value) { Apks.usable(value) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("APK name filter") },
@@ -378,13 +381,16 @@ private fun FilterDialog(current: String, onDismiss: () -> Unit, onSave: (String
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
+                    isError = !usable,
+                    supportingText = if (usable) null else ({ Text(FILTER_ERROR) }),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(value) }) { Text("Save") } },
+        confirmButton = { TextButton(onClick = { onSave(value) }, enabled = usable) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+

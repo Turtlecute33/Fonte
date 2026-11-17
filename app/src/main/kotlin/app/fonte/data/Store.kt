@@ -17,6 +17,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -84,14 +85,16 @@ class Store(dir: File, private val scope: CoroutineScope) {
 
     fun updateSettings(change: (Settings) -> Settings) = update { it.copy(settings = change(it.settings)) }
 
+    /** A failed write keeps the old file. All of it is in the try: a full disk must not end the process (review T-M6). */
     private suspend fun save() = writeLock.withLock {
-        val bytes = encode(_state.value).toString().toByteArray()
-        val out = file.startWrite()
+        var out: FileOutputStream? = null
         try {
+            val bytes = encode(_state.value).toString().toByteArray()
+            out = file.startWrite()
             out.write(bytes)
             file.finishWrite(out)
         } catch (e: Exception) {
-            file.failWrite(out)
+            out?.let { file.failWrite(it) }
             Log.w(TAG, "apps.json write failed: ${e.javaClass.simpleName}")
         }
     }

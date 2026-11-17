@@ -193,17 +193,21 @@ class FonteApp : Application() {
         // The checks go on without a refused token, so only this notice tells the user. One notice for each token:
         // a notice that the user removed does not come back.
         if (withContext(Dispatchers.IO) { token.takeNotice() }) notifier.tokenRefused(true)
-        val settings = store.settings
         val updates = withContext(Dispatchers.IO) {
             store.apps.filter { app ->
                 val info = app.packageName?.let(packages::info) ?: return@filter false
                 Versions.hasUpdate(app, info.versionCode, info.versionName)
             }
         }.sortedBy { it.packageName == packageName } // Last: the install of Fonte itself ends this process.
-        val install = settings.autoInstall && (!settings.unmeteredOnly || withContext(Dispatchers.IO) { unmetered(network) })
-        // A release that a background install refused or sent to the user does not download again (review CRITIC-2).
-        val left = updates.filter { app ->
-            !(install && app.autoUpdate && app.latest?.tag != app.refusedTag && installer.install(app.id, background = true))
+        val unmetered = withContext(Dispatchers.IO) { unmetered(network) }
+        // The settings and the entry as they are before each install: the user can turn installs off or remove an app
+        // while an earlier app installs (review T-M1). A release that a background install refused or sent to the
+        // user does not download again (review CRITIC-2).
+        val left = updates.filter { a ->
+            val s = store.settings
+            val app = store.app(a.id) ?: return@filter false
+            val install = s.autoInstall && (!s.unmeteredOnly || unmetered) && app.autoUpdate && app.latest?.tag != app.refusedTag
+            !(install && installer.install(app.id, background = true))
         }
         notifier.updatesAvailable(left.map { it.name })
     }

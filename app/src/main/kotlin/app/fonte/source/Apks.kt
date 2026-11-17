@@ -69,6 +69,15 @@ object Apks {
         return { regex.containsMatchIn(it) != invert }
     }
 
+    /**
+     * False for a filter that [filterOf] can only use as plain text: a bad or a [slow] regex. The dialogs refuse it, so
+     * that a typing error does not stop all updates with "No APK" (review T-M20).
+     */
+    fun usable(filter: String): Boolean {
+        val body = filter.trim().removePrefix("!").trim()
+        return body.isEmpty() || !slow(body) && runCatching { Regex(body) }.isSuccess
+    }
+
     private const val MAX_NAME = 200
     private const val MAX_FILTER = 200
     private const val MAX_REPEATS = 4

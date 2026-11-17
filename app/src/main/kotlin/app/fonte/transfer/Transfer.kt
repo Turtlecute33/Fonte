@@ -72,6 +72,9 @@ object Transfer {
             name = o.optString("name").ifBlank { null },
             prerelease = settings.optBoolean("includePrereleases"),
             filter = if (regex.isNotEmpty() && settings.optBoolean("invertAPKFilter")) "!$regex" else regex,
+            // An app that Obtainium only tracks, or that it leaves out of background updates, does not update itself
+            // here either (review T-M3).
+            autoUpdate = !settings.optBoolean("trackOnly") && !settings.optBoolean("exemptFromBackgroundUpdates"),
         )
     }
 

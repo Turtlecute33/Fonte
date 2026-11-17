@@ -62,6 +62,12 @@ class ApksTest {
         assertEquals(listOf("app-fdroid.apk"), rank(names("app-fdroid.apk", "app-play.apk"), "^((?!play).)*$"))
     }
 
+    /** Review T-M20: the dialogs refuse a filter that would only match as plain text. */
+    @Test fun usableFilters() {
+        for (f in listOf("", "!", "arm64", "!debug", "fdroid|foss", " \\.apk$ ")) assertTrue(Apks.usable(f), f)
+        for (f in listOf("[", "(a", "!(a+)+", "a{2,")) assertFalse(Apks.usable(f), f)
+    }
+
     @Test fun x86DeviceDropsArm() {
         assertEquals(listOf("a-x86_64.apk", "a.apk"), rank(names("a-arm64.apk", "a.apk", "a-x86_64.apk"), abis = listOf("x86_64", "x86")))
     }

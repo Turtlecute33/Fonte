@@ -23,6 +23,14 @@ class VersionsTest {
         assertTrue(Versions.compare("nightly", "stable") > 0)
     }
 
+    @Test fun higherOnlyWithNumbers() {
+        assertTrue(Versions.higher("2.0.1", "1.9.5"))
+        assertFalse(Versions.higher("1.9.5", "2.0.1"))
+        assertFalse(Versions.higher("2.0", "2.0.0"))
+        assertFalse(Versions.higher("nightly", "1.0"))
+        assertFalse(Versions.higher("1.0", "stable"))
+    }
+
     @Test fun isPre() {
         assertTrue(Versions.isPre("Nightly v1.100.36 (Chromium 156.0.8078.48)"))
         assertTrue(Versions.isPre("v2.0.0-rc.1"))

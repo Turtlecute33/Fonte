@@ -26,8 +26,8 @@ android {
         applicationId = "app.fonte"
         minSdk = 35
         targetSdk = 37
-        versionCode = 13
-        versionName = "0.1.12"
+        versionCode = 14
+        versionName = "0.1.13"
     }
 
     buildTypes {

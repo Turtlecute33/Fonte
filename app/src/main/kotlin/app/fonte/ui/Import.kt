@@ -13,16 +13,17 @@ import kotlinx.coroutines.withContext
 internal val IMPORT_TYPES = arrayOf("application/json", "text/*", "application/octet-stream")
 
 /**
- * Reads an Obtainium or Fonte export (at most [MAX_IMPORT] bytes), adds its apps and starts a check of all apps.
- * Returns the snackbar text. The home and settings screens share it.
+ * Reads an Obtainium or Fonte export (at most [MAX_IMPORT] bytes), adds its apps and starts a check of the apps that
+ * have no check yet. Returns the snackbar text. The home and settings screens share it.
  */
 internal suspend fun importFile(context: Context, uri: Uri, app: FonteApp): String = try {
     val text = withContext(Dispatchers.IO) {
         context.contentResolver.openInputStream(uri)?.use { it.readNBytes(MAX_IMPORT).decodeToString() } ?: ""
     }
     val r = app.library.import(text)
-    // Reads the releases of the new entries; runs on in the app scope when the screen goes.
-    app.scope.launch { app.library.checkAll() }
+    // Reads the releases of the new entries, after a check that runs; on in the app scope when the screen goes. No
+    // other app: a file with no new app sends no request (review T-M13).
+    if (r.added > 0) app.scope.launch { app.library.checkAll(skip = { it.checkedAt != 0L }, wait = true) }
     buildString {
         append(if (r.added == 1) "Imported 1 app" else "Imported ${r.added} apps")
         if (r.known > 0) append(" · ${r.known} in the list already")

@@ -217,6 +217,9 @@ fun taskText(context: Context, task: Installer.Task): String = when (task) {
     Installer.Task.Waiting -> "Installs when the app is not in use"
 }
 
+/** The text under an APK name filter that [app.fonte.source.Apks.usable] refuses. */
+const val FILTER_ERROR = "Not a regular expression that Fonte can use"
+
 fun size(context: Context, bytes: Long): String = Formatter.formatShortFileSize(context, bytes)
 
 fun copy(context: Context, label: String, text: String) {

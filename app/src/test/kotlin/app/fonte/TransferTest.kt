@@ -38,6 +38,16 @@ class TransferTest {
         assertTrue(Transfer.parse("""[{"url":"https://www.apkmirror.com/apk/x/y/","overrideSource":"APKMirror"}]""").single().unsupported)
     }
 
+    /** Review T-M3: an app that Obtainium only tracks, or leaves out of background updates, does not update itself. */
+    @Test fun obtainiumTrackOnlyAndExemptAppsDoNotUpdateThemselves() {
+        val e = Transfer.parse("""[
+          {"url":"https://github.com/o/a","additionalSettings":"{\"trackOnly\":true}"},
+          {"url":"https://github.com/o/b","additionalSettings":{"exemptFromBackgroundUpdates":true}},
+          {"url":"https://github.com/o/c","additionalSettings":{"trackOnly":false,"exemptFromBackgroundUpdates":false}}
+        ]""")
+        assertEquals(listOf(false, false, true), e.map { it.autoUpdate })
+    }
+
     @Test fun obtainiumLegacyArray() {
         val e = Transfer.parse("""[{"id":"a.b","url":"https://github.com/o/r","name":"R","additionalSettings":"{}"}]""")
         assertEquals("https://github.com/o/r", e.single().url)

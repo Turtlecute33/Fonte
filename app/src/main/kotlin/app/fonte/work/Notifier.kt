@@ -13,7 +13,8 @@ import app.fonte.install.Installer
 /**
  * Five quiet channels: available updates, install prompts, installed updates, downloads, a refused GitHub token.
  * Nothing is shown on a secure lock screen: each notification is secret. An app cannot set this on a channel (the
- * system overwrites that field), so [builder] sets it.
+ * system overwrites that field), so [builder] sets it. Notifications stay on the phone: no watch or car gets the
+ * names of the apps (review T-L20).
  */
 class Notifier(private val context: Context) {
     private val nm = context.getSystemService(NotificationManager::class.java)
@@ -90,6 +91,7 @@ class Notifier(private val context: Context) {
 
     private fun builder(channel: String) = Notification.Builder(context, channel).setSmallIcon(R.drawable.ic_notification)
         .setVisibility(Notification.VISIBILITY_SECRET)
+        .setLocalOnly(true)
 
     private fun openApp() = PendingIntent.getActivity(
         context,

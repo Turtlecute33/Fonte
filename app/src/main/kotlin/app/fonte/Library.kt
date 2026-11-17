@@ -37,10 +37,11 @@ class Library(private val store: Store, private val packages: Packages, private 
 
     /**
      * Checks every app that [skip] does not leave out, [PARALLEL] at a time (one connection per host carries them).
-     * Returns at once if a check runs.
+     * Returns at once if a check runs. With [wait], runs after that check: an import adds apps that it does not have
+     * (review T-M23).
      */
-    suspend fun checkAll(skip: (TrackedApp) -> Boolean = { false }) {
-        if (!checkLock.tryLock()) return
+    suspend fun checkAll(skip: (TrackedApp) -> Boolean = { false }, wait: Boolean = false) {
+        if (wait) checkLock.lock() else if (!checkLock.tryLock()) return
         _checking.value = true
         try {
             withContext(Dispatchers.IO) {
@@ -114,7 +115,9 @@ class Library(private val store: Store, private val packages: Packages, private 
     /** The apps in the signed index of [repo], by name. The index stays in the cache for the check that follows. */
     private suspend fun choices(repo: Links.Parsed.Choose): List<Choice> {
         val index = ctx.index.entry(repo.address, repo.key, repo.host)
-        val apps = ctx.index.read(repo.address, index, repo.host) { RepoIndex.apps(it) }
+        // A key that is no package name gives a link that names no app: add() would call itself until the stack
+        // overflows (review T-H1).
+        val apps = ctx.index.read(repo.address, index, repo.host) { RepoIndex.apps(it) }.filterKeys(Links::isPackageName)
         if (apps.isEmpty()) throw IOException("This repo has no apps")
         return apps.map { (pkg, name) -> Choice(repo.source(pkg).webUrl, name, pkg) }.sortedBy { it.name.lowercase() }
     }
@@ -122,8 +125,9 @@ class Library(private val store: Store, private val packages: Packages, private 
     data class Imported(val added: Int, val known: Int, val skipped: List<String>)
 
     /**
-     * Adds the apps of an Obtainium or Fonte export. The callers start [checkAll] at once: each new host gets a request
-     * then and at each interval (README Privacy). A source kind in the file makes any host a GitLab or Forgejo source.
+     * Adds the apps of an Obtainium or Fonte export. The callers check the new apps at once: each new host gets a
+     * request then and at each interval (README Privacy). A source kind in the file makes any host a GitLab or Forgejo
+     * source.
      */
     suspend fun import(text: String): Imported = withContext(Dispatchers.IO) {
         val entries = try {
@@ -198,11 +202,17 @@ class Library(private val store: Store, private val packages: Packages, private 
         )
     }
 
-    /** Changes the options; a change of release choice drops the ETag, so the next check reads the list again. */
+    /**
+     * Changes the options. A change of release choice drops the release and the ETag, so that the check that follows
+     * reads the list again. Until it succeeds, no release of the old choice can install (review T-M2).
+     */
     suspend fun setOptions(id: String, prerelease: Boolean, filter: String, autoUpdate: Boolean) {
         val before = store.app(id) ?: return
         val reselect = before.prerelease != prerelease || before.apkFilter != filter.trim()
-        store.updateApp(id) { it.copy(prerelease = prerelease, apkFilter = filter.trim(), autoUpdate = autoUpdate, etag = if (reselect) null else it.etag) }
+        store.updateApp(id) {
+            val options = it.copy(prerelease = prerelease, apkFilter = filter.trim(), autoUpdate = autoUpdate)
+            if (reselect) options.copy(latest = null, etag = null) else options
+        }
         if (reselect) check(id)
     }
 

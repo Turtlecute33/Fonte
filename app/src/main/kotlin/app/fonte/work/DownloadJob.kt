@@ -26,7 +26,8 @@ import kotlinx.coroutines.withContext
  * user leaves Fonte (a cached process gets no CPU), and a notification shows its progress. One job for each app.
  */
 class DownloadJob : JobService() {
-    private var work: Job? = null
+    /** The running jobs by job ID: one service object runs all of them ("Update all"), on the main thread (review T-M5). */
+    private val work = HashMap<Int, Job>()
 
     override fun onStartJob(params: JobParameters): Boolean {
         val appId = params.extras.getString(EXTRA_APP) ?: return false
@@ -36,7 +37,8 @@ class DownloadJob : JobService() {
         fun show(task: Installer.Task?) =
             setNotification(params, params.jobId, a.notifier.download(a.store.app(appId)?.name, task), JOB_END_NOTIFICATION_POLICY_REMOVE)
         show(null)
-        work = a.scope.launch {
+        // In the map before its end: the withContext below always suspends first.
+        work[params.jobId] = a.scope.launch {
             try {
                 a.store.awaitLoaded()
                 if (withContext(Dispatchers.IO) { needed(a, appId) }) coroutineScope {
@@ -51,6 +53,7 @@ class DownloadJob : JobService() {
                     progress.cancel()
                 }
             } finally {
+                work.remove(params.jobId)
                 jobFinished(params, false)
             }
         }
@@ -59,7 +62,7 @@ class DownloadJob : JobService() {
 
     /** The user stopped it (Task Manager): done. Other stops (no network): the system runs it again later. */
     override fun onStopJob(params: JobParameters): Boolean {
-        work?.cancel()
+        work.remove(params.jobId)?.cancel()
         return params.stopReason != JobParameters.STOP_REASON_USER
     }
 

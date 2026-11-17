@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.SecureFlagPolicy
 import app.fonte.ui.Icons
 import app.fonte.ui.openLink
 
@@ -63,7 +65,8 @@ fun TokenSheet(isSet: Boolean, onDismiss: () -> Unit, onSave: (String?) -> Unit)
     // Not saveable: the token stays out of the saved instance state.
     var value by remember { mutableStateOf("") }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+    // A secret: no screenshot and no picture in the recent apps.
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, properties = ModalBottomSheetProperties(securePolicy = SecureFlagPolicy.SecureOn)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp).imePadding()) {
             Text("GitHub token", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(6.dp))
@@ -128,7 +131,12 @@ fun TokenSheet(isSet: Boolean, onDismiss: () -> Unit, onSave: (String?) -> Unit)
             )
             Spacer(Modifier.height(16.dp))
             Button(
-                onClick = { onSave(value) },
+                onClick = {
+                    // A paste through the system menu also leaves the token on the clipboard (review T-M17).
+                    val cm = context.getSystemService(ClipboardManager::class.java)
+                    if (cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()?.trim() == value) cm.clearPrimaryClip()
+                    onSave(value)
+                },
                 enabled = TOKEN.matches(value),
                 shapes = ButtonDefaults.shapes(),
                 modifier = Modifier.fillMaxWidth().height(56.dp),

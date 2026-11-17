@@ -40,6 +40,9 @@ object Versions {
         }
     }
 
+    /** True when [a] is newer than [b] and both have a version number: then the order is certain. */
+    fun higher(a: String, b: String): Boolean = numbers(a) != null && numbers(b) != null && compare(a, b) > 0
+
     /** A YYYY-M-D date first: in "2024-11-01" the plain dotted run is only "2024". A suffix such as "-rc1" stays out. */
     private val NUMBERS = Regex("""\d{4}-\d{1,2}-\d{1,2}(?!\d)|\d+(?:\.\d+)*""")
     private val PRE = Regex("""(?i)(?<![a-z])(alpha|beta|rc|pre|prerelease|preview|dev|nightly|snapshot|canary)(?![a-z])""")

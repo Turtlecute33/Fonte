@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import app.fonte.Library
 import app.fonte.app
 import app.fonte.data.TrackedApp
+import app.fonte.source.Apks
+import app.fonte.ui.FILTER_ERROR
 import app.fonte.ui.Icons
 import app.fonte.ui.ItemRow
 import kotlinx.coroutines.CancellationException
@@ -78,9 +80,10 @@ fun AddSheet(initial: String, onDismiss: () -> Unit, onAdded: (TrackedApp) -> Un
     var busy by remember { mutableStateOf(false) }
     var error by remember(initial) { mutableStateOf<String?>(null) }
     var choices by remember(initial) { mutableStateOf(emptyList<Library.Choice>()) }
+    val usable = remember(filter) { Apks.usable(filter) }
 
     fun submit(target: String = link, name: String? = null) {
-        if (busy || target.isBlank()) return
+        if (busy || target.isBlank() || !usable) return
         busy = true
         error = null
         scope.launch {
@@ -152,7 +155,8 @@ fun AddSheet(initial: String, onDismiss: () -> Unit, onAdded: (TrackedApp) -> Un
                     value = filter,
                     onValueChange = { filter = it },
                     label = { Text("APK name filter") },
-                    supportingText = { Text("A regular expression. ! in front: names that do not match.") },
+                    isError = !usable,
+                    supportingText = { Text(if (usable) "A regular expression. ! in front: names that do not match." else FILTER_ERROR) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                     modifier = Modifier.fillMaxWidth(),
@@ -173,7 +177,7 @@ fun AddSheet(initial: String, onDismiss: () -> Unit, onAdded: (TrackedApp) -> Un
             Spacer(Modifier.height(16.dp))
             Button(
                 onClick = { submit() },
-                enabled = !busy && link.isNotBlank() && choices.isEmpty(),
+                enabled = !busy && link.isNotBlank() && choices.isEmpty() && usable,
                 shapes = ButtonDefaults.shapes(),
                 modifier = Modifier.fillMaxWidth().height(56.dp),
             ) {

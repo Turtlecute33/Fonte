@@ -71,16 +71,27 @@ object Sources {
         throw JSONException("Nested too deep")
     }
 
-    /** The newest release in [raws] (newest first) that the app's settings allow and that has an APK for this device. */
+    /**
+     * The release in [raws] (newest first) that the app's settings allow and that has an APK for this device: the
+     * newest one, but an older stable release with a higher version wins over a stable one. A fix of an older branch
+     * that comes after a newer release must not hide that release (review T-H2). A pre-release never wins by its
+     * version: a nightly tag with a date is higher than any semantic version.
+     */
     fun pick(raws: List<Raw>, app: TrackedApp, abis: List<String>): Release? {
+        var best: Raw? = null
+        var bestApks = emptyList<Asset>()
         for (r in raws) {
             if (r.prerelease && !app.prerelease) continue
             val apks = Apks.rank(r.assets, app.apkFilter, abis)
-            if (apks.isNotEmpty()) {
-                return Release(tag = r.tag, version = Versions.fromTag(r.tag), date = r.date, notes = Notes.plain(r.notes), page = r.page, assets = apks)
+            if (apks.isEmpty()) continue
+            val b = best
+            if (b == null || !r.prerelease && !b.prerelease && Versions.higher(Versions.fromTag(r.tag), Versions.fromTag(b.tag))) {
+                best = r
+                bestApks = apks
             }
         }
-        return null
+        val r = best ?: return null
+        return Release(tag = r.tag, version = Versions.fromTag(r.tag), date = r.date, notes = Notes.plain(r.notes), page = r.page, assets = bestApks)
     }
 
     /**

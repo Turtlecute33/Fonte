@@ -68,7 +68,8 @@ And also:
 - **The GitHub token** is optional; private repositories need one. Fonte shows the steps to make a
   fine-grained token with read-only access and nothing more. It is encrypted with an Android
   Keystore key (StrongBox when available) and sent only to api.github.com, with each GitHub check:
-  GitHub links these checks to your account. A redirect to another host drops it.
+  GitHub links these checks to your account. A redirect to another host drops it. The token
+  screen blocks screenshots.
 - **Release notes are plain text**. Fonte shows no HTML, and opens only https web pages.
 - **Memory tagging** (MTE) in sync mode on phones that have it, such as Pixel 8 and later.
 
@@ -94,8 +95,10 @@ And also:
 - No cookies, no HTTP cache, and a User-Agent with no device data. Fonte sends back the ETag of
   the last answer of each source, so that a source with no change answers "not modified". A source
   can use the ETag to see that two checks come from the same phone.
-- The clipboard is read only when you tap Paste.
-- Notifications do not show on a locked phone that has a screen lock.
+- The clipboard is read only when you tap Paste, and when you save a GitHub token: if the
+  clipboard holds the token, Fonte clears it.
+- Notifications do not show on a locked phone that has a screen lock, and do not go to a watch or a
+  car.
 - No backups: the app list and settings stay out of cloud backup and device transfer.
 - Fonte reads the installed version of each app in your list (Android permission "query all
   packages"). This information stays on the phone.
@@ -142,7 +145,9 @@ Release builds are signed with the key that `scripts/make-release-key.sh` makes;
   pre-releases on. When the digest of the index in `entry.jar` is the same as at the last check,
   nothing changed. Repos with only the old index (v1) are not supported.
 - **GitHub, GitLab, Codeberg, Forgejo and Gitea**: the 10 newest releases in one request. Fonte takes
-  the newest one with an APK for this device. Drafts are skipped, and pre-releases are skipped
+  the newest one with an APK for this device. An older stable release with a higher version number
+  wins over a newer stable release: a fix of an older branch does not hide a newer version. Drafts
+  are skipped, and pre-releases are skipped
   unless you turn them on. On GitHub, when all 10 are pre-releases (for example the nightly builds
   of Brave), one more request reads the stable release that GitHub marks as latest.
 - After Fonte installs an app, it remembers the release tag and the version code. The next checks

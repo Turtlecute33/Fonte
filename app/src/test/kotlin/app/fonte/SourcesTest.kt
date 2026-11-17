@@ -15,6 +15,7 @@ import app.fonte.source.Forgejo
 import app.fonte.source.GitHub
 import app.fonte.source.GitLab
 import app.fonte.source.Notes
+import app.fonte.source.Raw
 import app.fonte.source.Repo
 import app.fonte.source.Sources
 import kotlinx.coroutines.test.runTest
@@ -50,6 +51,19 @@ class SourcesTest {
         assertEquals("Fixed bug", stable.notes)
         assertEquals(1790848800000, stable.date)
         assertEquals("v2-beta", Sources.pick(GitHub.parse(json), app(SourceKind.GitHub, "o/r", prerelease = true), abis)!!.tag)
+    }
+
+    /** Review T-H2: a fix of an older branch that comes later does not hide the newer release. */
+    @Test fun pickTakesTheHighestStableVersion() {
+        fun raw(tag: String, pre: Boolean = false) = Raw(tag, pre, null, null, null, listOf(Asset("a.apk", "https://g/$tag.apk")))
+        val stable = app(SourceKind.GitHub, "o/r")
+        val beta = app(SourceKind.GitHub, "o/r", prerelease = true)
+        assertEquals("v2.0.1", Sources.pick(listOf(raw("v1.9.5"), raw("v2.0.1"), raw("v2.0.0")), stable, abis)?.tag)
+        // A pre-release never wins by its version: a date is higher than any semantic version.
+        assertEquals("v2.5.0", Sources.pick(listOf(raw("v2.5.0"), raw("nightly-2026-01-01", pre = true)), beta, abis)?.tag)
+        assertEquals("v2.6.0-beta1", Sources.pick(listOf(raw("v2.6.0-beta1", pre = true), raw("v2.5.0")), beta, abis)?.tag)
+        // Tags with no version number keep the order of the source.
+        assertEquals("stable", Sources.pick(listOf(raw("stable"), raw("v2.0.1")), stable, abis)?.tag)
     }
 
     /** Answers with the scripted status codes in turn, and keeps the headers of each request. */
