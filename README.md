@@ -102,6 +102,8 @@ And also:
 - No backups: the app list and settings stay out of cloud backup and device transfer.
 - Fonte reads the installed version of each app in your list (Android permission "query all
   packages"). This information stays on the phone.
+- Settings › Support has links to donate and to the developer on X and Nostr. They open in your
+  browser. The app itself does not connect to these hosts.
 
 ## Download
 

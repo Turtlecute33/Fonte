@@ -145,6 +145,17 @@ fun SettingsScreen(nav: Navigator) {
             GroupItem(1, 2, onClick = { openLink(context, "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens") }) {
                 ItemRow("About GitHub tokens", "docs.github.com")
             }
+
+            SectionTitle("Support")
+            GroupItem(0, 3, onClick = { openLink(context, "https://btcpay.priorato.org/api/v1/invoices?storeId=31ntjiLSTmSSuTC6FrR81z6AAku46bLF2FKAL3MFHtV5&orderId=Donation&checkoutDesc=Donation&currency=USD") }) {
+                ItemRow("Donate bitcoin", "btcpay.priorato.org")
+            }
+            GroupItem(1, 3, onClick = { openLink(context, "https://x.com/turtlecute33") }) {
+                ItemRow("X", "@turtlecute33")
+            }
+            GroupItem(2, 3, onClick = { openLink(context, "https://primal.net/turtlecute") }) {
+                ItemRow("Nostr", "turtlecute@primal.net")
+            }
         }
     }
 
