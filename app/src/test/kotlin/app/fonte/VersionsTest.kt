@@ -23,6 +23,20 @@ class VersionsTest {
         assertTrue(Versions.compare("nightly", "stable") > 0)
     }
 
+    @Test fun buildNumbers() {
+        // Peach Bitcoin: every build has the version name 0.69.0, only the tag tells the build.
+        assertTrue(Versions.compare("0.69.0(402)", "0.69.0") > 0)
+        assertTrue(Versions.compare("0.69.0(402)", "0.69.0(401)") > 0)
+        assertEquals(0, Versions.compare("0.69.0(402)", "0.69.0 (402)"))
+        assertTrue(Versions.compare("1.2.3", "1.2.3 (45)") < 0)
+        assertTrue(Versions.compare("0.70.0", "0.69.0(402)") > 0)
+        assertTrue(Versions.compare("2.0.0-rc1", "2.0.0(5)") < 0)
+        // Cromite: the digits of the commit hash are no build number.
+        assertEquals(0, Versions.compare("153.0.8010.37-11507ac1061b5ea227806f5e84db5a57df6ccf6a", "153.0.8010.37"))
+        assertEquals(0, Versions.compare("1.2.3", "1.2.3-42g1a2b"))
+        assertTrue(Versions.higher("0.69.0(402)", "0.69.0(401)"))
+    }
+
     @Test fun higherOnlyWithNumbers() {
         assertTrue(Versions.higher("2.0.1", "1.9.5"))
         assertFalse(Versions.higher("1.9.5", "2.0.1"))
@@ -65,6 +79,8 @@ class VersionsTest {
     @Test fun hasUpdate() {
         assertTrue(Versions.hasUpdate(app("v1.1"), 5, "1.0"))
         assertFalse(Versions.hasUpdate(app("v1.1"), 5, "1.1"))
+        // Adopted app with the same version name: the build in the tag decides.
+        assertTrue(Versions.hasUpdate(app("v0.69.0(402)"), 401, "0.69.0"))
         // F-Droid: version codes decide.
         assertTrue(Versions.hasUpdate(app("1.1", code = 11), 10, "1.1"))
         assertFalse(Versions.hasUpdate(app("1.1", code = 11), 12, "1.0"))

@@ -20,24 +20,28 @@ object Versions {
     /**
      * Above zero when [a] is newer than [b]. Compares the first run of dotted numbers ("v1.10.2-beta" → 1.10.2), or a
      * first date with hyphens ("r2024-11-01" → 2024.11.1); when those are equal, a final release is newer than a
-     * pre-release. Versions with no numbers that differ count as newer: the installer then finds the same version
+     * pre-release, then the numbers after the version that touch no letter decide: the build in "0.69.0(402)" is newer
+     * than "0.69.0". Versions with no numbers that differ count as newer: the installer then finds the same version
      * code and records it, so this happens once.
      */
     fun compare(a: String, b: String): Int {
-        val na = numbers(a)
-        val nb = numbers(b)
-        if (na == null || nb == null) return if (normal(a) == normal(b)) 0 else 1
-        for (i in 0 until max(na.size, nb.size)) {
-            val c = na.getOrElse(i) { 0 }.compareTo(nb.getOrElse(i) { 0 })
-            if (c != 0) return c
-        }
+        val ma = NUMBERS.find(a)
+        val mb = NUMBERS.find(b)
+        if (ma == null || mb == null) return if (normal(a) == normal(b)) 0 else 1
+        val c = order(parts(ma.value), parts(mb.value))
+        if (c != 0) return c
         val pa = isPre(a)
         val pb = isPre(b)
-        return when {
-            pa == pb -> 0
-            pa -> -1
-            else -> 1
+        if (pa != pb) return if (pa) -1 else 1
+        return order(builds(a, ma.range.last + 1), builds(b, mb.range.last + 1))
+    }
+
+    private fun order(a: List<Long>, b: List<Long>): Int {
+        for (i in 0 until max(a.size, b.size)) {
+            val c = a.getOrElse(i) { 0 }.compareTo(b.getOrElse(i) { 0 })
+            if (c != 0) return c
         }
+        return 0
     }
 
     /** True when [a] is newer than [b] and both have a version number: then the order is certain. */
@@ -50,8 +54,15 @@ object Versions {
     /** True when [s] names a pre-release channel as a full word ("beta2", "rc.1"); "Preferences" and "Devices" do not. */
     fun isPre(s: String) = PRE.containsMatchIn(s)
 
-    private fun numbers(s: String): List<Long>? =
-        NUMBERS.find(s)?.value?.split('.', '-')?.map { it.toLongOrNull() ?: Long.MAX_VALUE }
+    /** A number with no letter or digit next to it: "(402)" and "-2" count, the digits of a commit hash do not. */
+    private val BUILD = Regex("""(?<![\p{L}\d])\d+(?![\p{L}\d])""")
+
+    private fun numbers(s: String): List<Long>? = NUMBERS.find(s)?.value?.let(::parts)
+
+    private fun parts(run: String): List<Long> = run.split('.', '-').map { it.toLongOrNull() ?: Long.MAX_VALUE }
+
+    private fun builds(s: String, from: Int): List<Long> =
+        BUILD.findAll(s, from).map { it.value.toLongOrNull() ?: Long.MAX_VALUE }.toList()
 
     private fun normal(s: String) = s.trim().lowercase().removePrefix("v")
 
