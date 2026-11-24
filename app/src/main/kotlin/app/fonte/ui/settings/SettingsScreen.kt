@@ -36,6 +36,7 @@ import app.fonte.Library
 import app.fonte.app
 import app.fonte.data.Settings
 import app.fonte.ui.Bar
+import app.fonte.ui.DONATE_URL
 import app.fonte.ui.GroupItem
 import app.fonte.ui.IMPORT_TYPES
 import app.fonte.ui.ItemRow
@@ -147,7 +148,7 @@ fun SettingsScreen(nav: Navigator) {
             }
 
             SectionTitle("Support")
-            GroupItem(0, 3, onClick = { openLink(context, "https://btcpay.priorato.org/api/v1/invoices?storeId=31ntjiLSTmSSuTC6FrR81z6AAku46bLF2FKAL3MFHtV5&orderId=Donation&checkoutDesc=Donation&currency=USD") }) {
+            GroupItem(0, 3, onClick = { openLink(context, DONATE_URL) }) {
                 ItemRow("Donate bitcoin", "btcpay.priorato.org")
             }
             GroupItem(1, 3, onClick = { openLink(context, "https://x.com/turtlecute33") }) {

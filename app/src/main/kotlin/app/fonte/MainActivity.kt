@@ -15,6 +15,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import app.fonte.source.Links
+import app.fonte.ui.DonatePrompt
 import app.fonte.ui.nav.AppNav
 import app.fonte.ui.nav.Navigator
 import app.fonte.ui.nav.Route
@@ -37,7 +38,10 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             FonteTheme {
-                Surface(Modifier.fillMaxSize()) { AppNav(nav) }
+                Surface(Modifier.fillMaxSize()) {
+                    AppNav(nav)
+                    DonatePrompt()
+                }
             }
         }
     }

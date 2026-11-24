@@ -104,6 +104,8 @@ And also:
   packages"). This information stays on the phone.
 - Settings › Support has links to donate and to the developer on X and Nostr. They open in your
   browser. The app itself does not connect to these hosts.
+- A small donation card shows when you open the app: first 7 days after the install, then at most
+  once each 3 months. It sends no notification and makes no request.
 
 ## Download
 
