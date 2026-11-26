@@ -114,7 +114,8 @@ class Installer(
     fun start(appId: String) {
         if (_tasks.value[appId].let { it != null && it !is Task.Waiting }) return
         val size = store.app(appId)?.latest?.assets?.firstOrNull()?.size ?: 0
-        if (!DownloadJob.schedule(context, appId, size)) scope.launch { install(appId, background = false) }
+        // schedule() makes binder calls: not on the main thread.
+        scope.launch { if (!withContext(Dispatchers.IO) { DownloadJob.schedule(context, appId, size) }) install(appId, background = false) }
     }
 
     /**
@@ -410,8 +411,8 @@ class Installer(
 
     /**
      * A wait for install constraints ended: commits the session when the app is not in use, is still in the list, and
-     * may still update in the background. A removal or a settings change after the download stops it (review T-M1).
-     * Else the session goes. A session that a newer install gave up ([commit]) is gone already: nothing changes then.
+     * may still update in the background, and the session is of the latest release. A removal, a settings change or
+     * a newer release after the download stops it (review T-M1). Else the session goes. A session that a newer install gave up ([commit]) is gone already: nothing changes then.
      */
     private suspend fun onWait(intent: Intent) {
         val appId = intent.getStringExtra(EXTRA_APP) ?: return
@@ -420,12 +421,12 @@ class Installer(
             ?.areAllConstraintsSatisfied() == true
         store.awaitLoaded()
         val app = store.app(appId)
-        val allowed = app != null && app.autoUpdate && store.settings.autoInstall
+        val tag = intent.getStringExtra(EXTRA_TAG).orEmpty()
+        val allowed = app != null && app.autoUpdate && store.settings.autoInstall && app.latest?.tag == tag
         val committed = withContext(Dispatchers.IO) {
             val pi = installer
             // Gone: a newer install gave it up, and the task is of that install.
             if (pi.getSessionInfo(sessionId) == null) return@withContext null
-            val tag = intent.getStringExtra(EXTRA_TAG).orEmpty()
             val code = intent.getLongExtra(EXTRA_CODE, 0)
             val pin = intent.getStringExtra(EXTRA_CERT).orEmpty()
             val ok = met && allowed && runCatching {

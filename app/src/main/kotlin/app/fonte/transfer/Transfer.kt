@@ -54,7 +54,7 @@ object Transfer {
         // Older exports keep the settings as a JSON string, newer ones as an object.
         val raw = o.opt("additionalSettings")
         val settings = raw as? JSONObject ?: (raw as? String)?.let { runCatching { JSONObject(it) }.getOrNull() } ?: JSONObject()
-        val regex = settings.optString("apkFilterRegEx").trim()
+        val regex = settings.str("apkFilterRegEx").orEmpty().trim()
         val override = o.optString("overrideSource").takeIf { it.isNotEmpty() && it != "null" }
         val hint = when (override) {
             "GitHub" -> SourceKind.GitHub
@@ -69,7 +69,7 @@ object Transfer {
             hint = hint,
             unsupported = override != null && hint == null,
             packageName = o.optString("id").takeIf(Links::isPackageName),
-            name = o.optString("name").ifBlank { null },
+            name = o.str("name")?.ifBlank { null },
             prerelease = settings.optBoolean("includePrereleases"),
             filter = if (regex.isNotEmpty() && settings.optBoolean("invertAPKFilter")) "!$regex" else regex,
             // An app that Obtainium only tracks, or that it leaves out of background updates, does not update itself

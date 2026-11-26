@@ -163,6 +163,13 @@ class SourcesTest {
         assertEquals(listOf("gadgetbridge-0.95.1.apk"), r.assets.map { it.name })
     }
 
+    @Test fun pickKeepsOnlyAPageOnTheHostOfTheSource() {
+        fun page(url: String) = Sources.pick(listOf(Raw("v1", false, null, null, url, listOf(Asset("a.apk", "https://g/1.apk")))), app(SourceKind.GitHub, "o/r"), abis)!!.page
+        assertEquals("https://HOST/o/r/releases/v1", page("https://HOST/o/r/releases/v1"))
+        assertNull(page("https://other.example.org/o/r/releases/v1"))
+        assertNull(page("not a link"))
+    }
+
     @Test fun gitlabLinksAndUploads() = runTest {
         val json = """[{"tag_name":"4.8.4","upcoming_release":false,"released_at":"2026-10-01T00:00:00Z",
           "description":"Changelog\n[AuroraStore-4.8.4.apk](/uploads/245eec88/AuroraStore-4.8.4.apk) [hw](/uploads/ceb55e58/AuroraStore-hw-4.8.4.apk)",

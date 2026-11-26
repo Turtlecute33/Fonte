@@ -3,6 +3,7 @@ package app.fonte.source
 import app.fonte.data.Asset
 import app.fonte.data.Release
 import app.fonte.data.SourceKind
+import app.fonte.data.Store.Companion.str
 import app.fonte.data.TrackedApp
 import org.json.JSONObject
 
@@ -35,7 +36,7 @@ object FDroid : SourceApi {
         val o = JSONObject(json)
         val list = o.optJSONArray("packages") ?: return null
         val versions = (0 until list.length()).map { list.getJSONObject(it) }
-            .map { it.optString("versionName") to it.optLong("versionCode") }
+            .map { it.str("versionName").orEmpty() to it.optLong("versionCode") }
             .filter { it.second > 0 }
         if (versions.isEmpty()) return null
         val suggested = o.optLong("suggestedVersionCode")

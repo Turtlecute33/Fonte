@@ -1,6 +1,7 @@
 package app.fonte.ui.detail
 
 import android.content.Intent
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
@@ -39,11 +40,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -66,6 +69,7 @@ import app.fonte.ui.Icons
 import app.fonte.ui.ItemRow
 import app.fonte.ui.SectionTitle
 import app.fonte.ui.SwitchItem
+import app.fonte.ui.confirm
 import app.fonte.ui.copy
 import app.fonte.ui.nav.Navigator
 import app.fonte.ui.openLink
@@ -78,6 +82,7 @@ import kotlinx.coroutines.withContext
 fun DetailScreen(id: String, nav: Navigator) {
     val context = LocalContext.current
     val app = context.app
+    val haptic = LocalHapticFeedback.current
     val rows by app.rows.collectAsStateWithLifecycle()
     val row = rows.firstOrNull { it.app.id == id }
     if (row == null) {
@@ -126,10 +131,12 @@ fun DetailScreen(id: String, nav: Navigator) {
                     add("Installed" to (installed?.let { "${it.versionName} (${it.versionCode})" } ?: "Not installed"))
                     add("Latest" to (latest?.let { r -> r.version + (r.date?.let { " · " + ago(it) } ?: "") } ?: if (t.checkedAt == 0L) "Not checked yet" else "Not found"))
                     add("Source" to "${t.source.label} · ${t.source.path}")
-                    if (t.checkedAt > 0) add("Checked" to ago(t.checkedAt))
+                    add("Checked" to if (t.checkedAt > 0) ago(t.checkedAt) else "Never")
                 }
                 Column {
-                    items.forEachIndexed { i, (k, v) -> GroupItem(i, items.size) { ItemRow(k, v) } }
+                    items.forEachIndexed { i, (k, v) ->
+                        GroupItem(i, items.size) { ItemRow(k, v) { if (k == "Checked") CheckNow(id, snackbar) } }
+                    }
                 }
             }
 
@@ -217,7 +224,7 @@ fun DetailScreen(id: String, nav: Navigator) {
             title = { Text("Remove ${t.name}?") },
             text = {
                 Column {
-                    Text("Fonte stops checking this app for updates.")
+                    Text("Fonte stops checking this app and forgets its pinned certificate and options.")
                     if (row.installed != null) {
                         // One tap target and one TalkBack stop for the label and the box.
                         // With onCheckedChange = null the box loses its 48 dp size. The padding and the gap keep the old layout.
@@ -234,6 +241,7 @@ fun DetailScreen(id: String, nav: Navigator) {
             },
             confirmButton = {
                 TextButton(onClick = {
+                    haptic.confirm()
                     removing = false
                     val pkg = row.installed?.pkg
                     if (uninstall && pkg != null) {
@@ -267,10 +275,28 @@ private fun Header(row: Row) {
     }
 }
 
+/** Checks this app only. Offline: one message, and no error on the app. */
+@Composable
+private fun CheckNow(id: String, snackbar: SnackbarHostState) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    TextButton(enabled = !busy, onClick = {
+        if (context.getSystemService(ConnectivityManager::class.java).activeNetwork == null) {
+            scope.launch { snackbar.showSnackbar("No network") }
+        } else {
+            busy = true
+            // The app scope: the check runs on when the screen goes.
+            context.app.scope.launch { try { context.app.library.check(id) } finally { busy = false } }
+        }
+    }) { Text("Check now") }
+}
+
 @Composable
 private fun Actions(row: Row) {
     val context = LocalContext.current
     val app = context.app
+    val haptic = LocalHapticFeedback.current
     val t = row.app
     val task = row.task
     val latest = t.latest
@@ -309,12 +335,12 @@ private fun Actions(row: Row) {
             }.value
             when {
                 row.update && latest != null -> Button(
-                    onClick = { app.installer.start(t.id) },
+                    onClick = { haptic.confirm(); app.installer.start(t.id) },
                     shapes = ButtonDefaults.shapes(),
                     modifier = Modifier.weight(1f).height(56.dp),
                 ) { Text("Update to ${latest.version}", maxLines = 1) }
                 installed == null && latest != null -> Button(
-                    onClick = { app.installer.start(t.id) },
+                    onClick = { haptic.confirm(); app.installer.start(t.id) },
                     shapes = ButtonDefaults.shapes(),
                     modifier = Modifier.weight(1f).height(56.dp),
                 ) { Text("Install ${latest.version}", maxLines = 1) }

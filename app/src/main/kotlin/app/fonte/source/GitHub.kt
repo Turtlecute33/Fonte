@@ -1,6 +1,7 @@
 package app.fonte.source
 
 import app.fonte.data.Asset
+import app.fonte.data.Store.Companion.str
 import app.fonte.data.TrackedApp
 import app.fonte.net.Http
 import org.json.JSONArray
@@ -96,7 +97,7 @@ object GitHub : SourceApi {
             tag = o.getString("tag_name"),
             prerelease = o.optBoolean("prerelease") || Versions.isPre(o.optString("name")),
             date = Sources.date(o.optString("published_at")),
-            notes = o.optString("body"),
+            notes = o.str("body").orEmpty(),
             page = o.optString("html_url").ifEmpty { null },
             assets = (0 until assets.length()).map { assets.getJSONObject(it) }.map { a ->
                 Asset(

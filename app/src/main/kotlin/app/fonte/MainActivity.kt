@@ -29,6 +29,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // No other app can draw over the Install and Remove buttons (needs the HIDE_OVERLAY_WINDOWS permission).
+        window.setHideOverlayWindows(true)
         keepSplashUntilReady()
         if (savedInstanceState == null) takeSharedLink(intent)
         lifecycleScope.launch {

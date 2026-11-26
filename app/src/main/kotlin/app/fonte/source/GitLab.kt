@@ -1,6 +1,7 @@
 package app.fonte.source
 
 import app.fonte.data.Asset
+import app.fonte.data.Store.Companion.str
 import app.fonte.data.TrackedApp
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,13 +40,13 @@ object GitLab : SourceApi {
     suspend fun parse(json: String, host: String, projectId: suspend () -> Long): List<Raw> {
         val arr = JSONArray(json)
         val releases = (0 until arr.length()).map { arr.getJSONObject(it) }
-        val id = if (releases.any { UPLOAD.containsMatchIn(it.optString("description")) }) projectId() else null
+        val id = if (releases.any { UPLOAD.containsMatchIn(it.str("description").orEmpty()) }) projectId() else null
         return releases.map { o -> raw(o, host, id) }
     }
 
     private fun raw(o: JSONObject, host: String, projectId: Long?): Raw {
         val tag = o.getString("tag_name")
-        val description = o.optString("description")
+        val description = o.str("description").orEmpty()
         val assets = ArrayList<Asset>()
         o.optJSONObject("assets")?.optJSONArray("links")?.let { links ->
             for (i in 0 until links.length()) {

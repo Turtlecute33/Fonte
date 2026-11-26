@@ -101,8 +101,6 @@ class FonteApp : Application() {
             library.addSelf()
             val tracked = trackedPackages().toSet()
             packages.refresh(tracked)
-            // A token file that cannot be read shows as not set before the first check (Review STORAGE-4).
-            token.get()
             _ready.value = true
             // A new or removed app: read the installed packages again. The set that was just read does not count.
             launch {
@@ -166,6 +164,9 @@ class FonteApp : Application() {
             ready.first { it }
             val online = withContext(Dispatchers.IO) {
                 packages.refreshIfOld(trackedPackages())
+                // The first read is a Keystore operation that the first frame does not need. A token file that cannot
+                // be read shows as not set before the first check (Review STORAGE-4).
+                token.get()
                 getSystemService(ConnectivityManager::class.java).activeNetwork != null
             }
             // With no network, a check puts the same error on each app and counts as a new check.

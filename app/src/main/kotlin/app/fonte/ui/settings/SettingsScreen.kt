@@ -6,6 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.fonte.BuildConfig
@@ -84,7 +87,12 @@ fun SettingsScreen(nav: Navigator) {
     }
 
     Scaffold(topBar = { Bar("Settings", onBack = nav::back) }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+        // The bottom inset goes inside the scroll, so that the last item scrolls clear of the navigation bar.
+        val dir = LocalLayoutDirection.current
+        Column(
+            Modifier.fillMaxSize().padding(top = padding.calculateTopPadding(), start = padding.calculateStartPadding(dir), end = padding.calculateEndPadding(dir))
+                .verticalScroll(rememberScrollState()).padding(bottom = 32.dp + padding.calculateBottomPadding()),
+        ) {
             SectionTitle("Updates")
             val count = if (s.background) 4 else 1
             SwitchItem(0, count, "Check in the background", s.background, { v ->

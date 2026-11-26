@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,10 +41,8 @@ import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -64,6 +64,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -82,6 +84,7 @@ import app.fonte.ui.Icons
 import app.fonte.ui.ItemRow
 import app.fonte.ui.SectionTitle
 import app.fonte.ui.TaskIndicator
+import app.fonte.ui.confirm
 import app.fonte.ui.importFile
 import app.fonte.ui.nav.Navigator
 import app.fonte.ui.nav.Route
@@ -97,6 +100,7 @@ fun HomeScreen(nav: Navigator) {
     val rows by app.rows.collectAsStateWithLifecycle()
     val checking by app.library.checking.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
     val snackbar = remember { SnackbarHostState() }
     var adding by rememberSaveable { mutableStateOf(false) }
     var addLink by rememberSaveable { mutableStateOf("") }
@@ -116,6 +120,11 @@ fun HomeScreen(nav: Navigator) {
 
     /** Apps that the user added: Fonte's own entry does not count. */
     fun added() = app.store.apps.count { !Library.isSelf(it) }
+
+    /** Offline: one message, not one error for each app (Review UIUX-9). */
+    fun whenOnline(run: () -> Unit) {
+        if (context.getSystemService(ConnectivityManager::class.java).activeNetwork == null) scope.launch { snackbar.showSnackbar("No network") } else run()
+    }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     fun askNotifications() {
         if (app.store.settings.background &&
@@ -160,7 +169,7 @@ fun HomeScreen(nav: Navigator) {
                         // Pull to refresh is only a gesture: TalkBack and Switch Access get the same check as an action.
                         modifier = Modifier.semantics {
                             if (!checking) customActions = listOf(
-                                CustomAccessibilityAction("Check for updates") { scope.launch { app.library.checkAll() }; true },
+                                CustomAccessibilityAction("Check for updates") { whenOnline { scope.launch { app.library.checkAll() } }; true },
                             )
                         },
                     )
@@ -183,20 +192,22 @@ fun HomeScreen(nav: Navigator) {
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
+        // The bottom inset goes inside the list, so that the last app scrolls clear of the navigation bar.
+        val dir = LocalLayoutDirection.current
         PullToRefreshBox(
             isRefreshing = checking,
             // The app scope: the check runs on when the screen goes or turns.
-            onRefresh = { app.scope.launch { app.library.checkAll() } },
+            onRefresh = { whenOnline { app.scope.launch { app.library.checkAll() } } },
             state = refresh,
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding(), start = padding.calculateStartPadding(dir), end = padding.calculateEndPadding(dir)),
             indicator = {
                 PullToRefreshDefaults.LoadingIndicator(state = refresh, isRefreshing = checking, modifier = Modifier.align(Alignment.TopCenter))
             },
         ) {
             if (empty) {
-                Empty(onAdd = { adding = true }, onImport = { importer.launch(IMPORT_TYPES) })
+                Empty(onAdd = { adding = true }, onImport = { importer.launch(IMPORT_TYPES) }, modifier = Modifier.padding(bottom = padding.calculateBottomPadding()))
             } else {
-                LazyColumn(state = list, contentPadding = PaddingValues(bottom = 104.dp), modifier = Modifier.fillMaxSize()) {
+                LazyColumn(state = list, contentPadding = PaddingValues(bottom = 104.dp + padding.calculateBottomPadding()), modifier = Modifier.fillMaxSize()) {
                     // The list keeps its first visible item in view when items go in above it. At the top, stay at
                     // the top: the installed state arrives after the first layout, and an update moves its app up.
                     // This block runs again when the items change, before the list measures them.
@@ -209,10 +220,8 @@ fun HomeScreen(nav: Navigator) {
                     section("Updates", updates, nav) {
                         if (updates.any { it.task == null }) {
                             TextButton(onClick = {
-                                // Offline: one message, not one error for each app (Review UIUX-9).
-                                if (context.getSystemService(ConnectivityManager::class.java).activeNetwork == null) {
-                                    scope.launch { snackbar.showSnackbar("No network") }
-                                } else {
+                                whenOnline {
+                                    haptic.confirm()
                                     updates.forEach { app.installer.start(it.app.id) }
                                 }
                             }) { Text("Update all") }
@@ -238,8 +247,8 @@ fun HomeScreen(nav: Navigator) {
                 scope.launch {
                     if (added() == 1) askNotifications()
                     if (withContext(Dispatchers.IO) { added.packageName?.let(app.packages::info) } == null) {
-                        val r = snackbar.showSnackbar("Added ${added.name}", actionLabel = "Install", withDismissAction = true, duration = SnackbarDuration.Long)
-                        if (r == SnackbarResult.ActionPerformed) app.installer.start(added.id)
+                        // Not installed: the row goes to the end of the list. Its page shows the version and the Install button.
+                        nav.go(Route.Detail(added.id))
                     } else {
                         snackbar.showSnackbar("Added ${added.name}")
                     }
@@ -265,6 +274,7 @@ private fun LazyListScope.section(
 @Composable
 private fun AppItem(row: Row, index: Int, count: Int, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val app = row.app
     val task = row.task
     val installed = row.installed
@@ -286,14 +296,15 @@ private fun AppItem(row: Row, index: Int, count: Int, onOpen: () -> Unit, modifi
             leading = { AppIcon(app.packageName, installed?.versionCode, app.name, 44.dp) },
             subtitleColor = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             subtitleLines = 1,
+            titleLines = 1,
         ) {
             Spacer(Modifier.width(12.dp))
             when {
                 // A wait for install constraints does not block a manual update (Review CRITIC-3).
                 task != null && task !is Installer.Task.Waiting -> TaskIndicator(task)
-                row.update -> FilledTonalButton(onClick = { context.app.installer.start(app.id) }, shapes = ButtonDefaults.shapes()) { Text("Update") }
+                row.update -> FilledTonalButton(onClick = { haptic.confirm(); context.app.installer.start(app.id) }, shapes = ButtonDefaults.shapes()) { Text("Update") }
                 installed == null && latest != null ->
-                    OutlinedButton(onClick = { context.app.installer.start(app.id) }, shapes = ButtonDefaults.shapes()) { Text("Install") }
+                    OutlinedButton(onClick = { haptic.confirm(); context.app.installer.start(app.id) }, shapes = ButtonDefaults.shapes()) { Text("Install") }
             }
         }
     }
@@ -322,9 +333,9 @@ private fun InstallPermission(context: Context) {
 }
 
 @Composable
-private fun Empty(onAdd: () -> Unit, onImport: () -> Unit) {
+private fun Empty(onAdd: () -> Unit, onImport: () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 48.dp),
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 48.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

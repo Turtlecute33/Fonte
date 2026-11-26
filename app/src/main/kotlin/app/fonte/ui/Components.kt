@@ -38,6 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -51,6 +53,9 @@ import app.fonte.app
 import app.fonte.install.Installer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+/** The short "done" haptic of a key action. */
+fun HapticFeedback.confirm() = performHapticFeedback(HapticFeedbackType.Confirm)
 
 /** A top bar with a back arrow (when [onBack] is set), a title and actions. */
 @Composable
@@ -120,6 +125,7 @@ fun ItemRow(
     leading: (@Composable () -> Unit)? = null,
     subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     subtitleLines: Int = 2,
+    titleLines: Int = 2,
     mono: Boolean = false,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
@@ -132,7 +138,7 @@ fun ItemRow(
             Spacer(Modifier.width(16.dp))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = titleLines, overflow = TextOverflow.Ellipsis)
             if (!subtitle.isNullOrEmpty()) {
                 val style = MaterialTheme.typography.bodyMedium
                 Text(

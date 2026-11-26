@@ -49,9 +49,11 @@ run on GrapheneOS with "Restrict dynamic code loading" (memory and storage) on.
 
 Before Fonte installs an APK, the APK must:
 
-- match the SHA-256 digest that GitHub publishes for the file. For other F-Droid repos, match the
-  digest in the repo's signed index. Fonte checks that index with the fingerprint from the repo
-  link at each check, and refuses a repo link with no fingerprint;
+- match the SHA-256 digest that the source publishes for the file, when there is one. GitHub
+  publishes a digest for new release files. GitLab, Forgejo and older GitHub files have none: then
+  the checks below decide. For other F-Droid repos, match the digest in the repo's signed index.
+  Fonte checks that index with the fingerprint from the repo link at each check, and refuses a repo
+  link with no fingerprint;
 - be a valid, signed APK with native code (if any) for this device;
 - keep the package name that the app had before;
 - be signed with the pinned certificate. Fonte pins the certificate at the first install, or when

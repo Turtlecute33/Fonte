@@ -10,6 +10,7 @@ import app.fonte.net.Http
 import app.fonte.net.HttpGet
 import org.json.JSONException
 import java.io.IOException
+import java.net.URI
 import java.net.URLEncoder
 import java.time.OffsetDateTime
 
@@ -91,8 +92,11 @@ object Sources {
             }
         }
         val r = best ?: return null
-        return Release(tag = r.tag, version = Versions.fromTag(r.tag), date = r.date, notes = Notes.plain(r.notes), page = r.page, assets = bestApks)
+        return Release(tag = r.tag, version = Versions.fromTag(r.tag), date = r.date, notes = Notes.plain(r.notes), page = r.page?.takeIf { sameHost(it, app.source.host) }, assets = bestApks)
     }
+
+    /** A server must not point the "source page" icon at another site: the page stays only on the host of the source. */
+    private fun sameHost(page: String, host: String) = runCatching { URI(page).host.equals(host, ignoreCase = true) }.getOrDefault(false)
 
     /**
      * The source behind a link. A link to an unknown host is probed for a Forgejo/Gitea API, then a GitLab API. A

@@ -17,6 +17,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- An install that the user starts goes on after the user leaves Fonte (user-initiated data transfer job). -->
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <!-- Hides the windows that other apps draw over Fonte, so that they cannot cover the Install and Remove buttons. -->
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
     <!-- Keeps the periodic update check after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -53,6 +55,11 @@
         <receiver
             android:name=".install.InstallReceiver"
             android:exported="false" />
+
+        <!-- Only adb tooling uses this exported receiver of profileinstaller. Only the launcher activity is exported. -->
+        <receiver
+            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+            tools:node="remove" />
 
         <service
             android:name=".work.UpdateJob"
